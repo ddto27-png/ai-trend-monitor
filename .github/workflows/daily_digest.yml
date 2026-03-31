@@ -1,0 +1,49 @@
+name: AI Trend Monitor
+
+on:
+  # Run automatically every morning at 7am UTC
+  schedule:
+    - cron: "0 7 * * *"
+
+  # Also allows you to trigger it manually from the GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: "How many days back to look for papers (default: 1, use 2 after weekends)"
+        required: false
+        default: "1"
+      dry_run:
+        description: "Dry run — analyse but don't publish to Notion (true/false)"
+        required: false
+        default: "false"
+
+jobs:
+  run-digest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run AI Trend Monitor
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_PARENT_PAGE_ID: ${{ secrets.NOTION_PARENT_PAGE_ID }}
+        run: |
+          DAYS="${{ github.event.inputs.days_back || '1' }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            python main.py --days "$DAYS" --dry-run
+          else
+            python main.py --days "$DAYS"
+          fi
