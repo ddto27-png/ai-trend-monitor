@@ -18,43 +18,73 @@ For each trend you identify, assess it across six dimensions:
 1. SIGNAL QUALITY: Is this real signal or hype? Is it practitioner-driven or vendor-driven?
    Is it a genuine shift or a rebrand? (1-2 sentences)
 
-2. VENDOR PITCH LIKELIHOOD: Will a vendor likely pitch this to enterprise buyers in the
-   next 90 days? (Yes / Likely / Unlikely / No)
+2. SALES PITCH RISK: Will vendors likely start pitching this to enterprise buyers within
+   the next 90 days — meaning buyers will start hearing about it in sales calls and need
+   to know how to evaluate it?
+   Answer: Yes / Likely / Unlikely / No
 
 3. TREND CURVE: Where is this on the adoption curve?
    (Emerging = <5% aware | Rising = gaining traction | Peak = mainstream buzz | Mature = commoditising)
 
-4. AUDIENCE LANE: Who does this serve?
-   - Business Buyer (ROI, risk, cost)
-   - Technical Decision Maker (architecture, feasibility)
-   - Internal Champion (implementation, adoption)
-   - All Three
+4. AUDIENCE LANES: List every audience this trend is relevant to. Choose from:
+   - "Business Buyer" — cares about ROI, risk, cost, competitive advantage
+   - "Technical DM" — cares about architecture, feasibility, vendor evaluation
+   - "Internal Champion" — cares about implementation, team adoption, making the case internally
+   List all that apply. If all three apply, also set priority: true.
 
-5. CONTENT GAP: What angle on this trend has NOT been taken yet by mainstream tech press?
+5. CONTENT GAP: What angle on this trend has NOT been covered yet?
+   First give a brief educated guess at what current coverage looks like (flag it as an
+   educated guess). Then state what's missing.
 
 6. RECOMMENDED ACTION: Publish Now / Watch 2 Weeks / Skip
+
+7. CONTENT BRIEF: A light roadmap for a writer — not a rigid script, just enough direction.
+   Include: the purpose of the piece, the specific topic/angle, 3-5 content points to hit
+   (these are starting points, not a checklist), and 2-3 format options the writer could choose.
 
 OUTPUT FORMAT — respond with valid JSON only, no other text:
 {
   "trends": [
     {
       "title": "Short descriptive trend title",
-      "category": "LLMs" | "AI Agents & Automation" | "GPU & Infrastructure",
+      "category": "LLMs or AI Agents & Automation or GPU & Infrastructure",
       "signal_quality": "...",
-      "vendor_pitch_likelihood": "Yes" | "Likely" | "Unlikely" | "No",
-      "trend_curve": "Emerging" | "Rising" | "Peak" | "Mature",
-      "audience_lane": "Business Buyer" | "Technical DM" | "Internal Champion" | "All Three",
-      "content_gap": "...",
-      "recommended_action": "Publish Now" | "Watch 2 Weeks" | "Skip",
-      "content_brief": "One-line brief: [angle] — [format] — [timing] — [audience]",
-      "priority": true | false,
-      "supporting_papers": ["Paper title 1", "Paper title 2"]
+      "sales_pitch_risk": "Yes or Likely or Unlikely or No",
+      "trend_curve": "Emerging or Rising or Peak or Mature",
+      "audience_lanes": ["Business Buyer", "Technical DM", "Internal Champion"],
+      "content_gap": {
+        "current_coverage": "Educated guess: current content tends to...",
+        "gap": "What is missing and why it matters..."
+      },
+      "recommended_action": "Publish Now or Watch 2 Weeks or Skip",
+      "content_brief": {
+        "purpose": "Why this piece matters and what it achieves for the reader",
+        "topic": "The specific angle to take",
+        "content_points": [
+          "Point or question the piece should address",
+          "Point or question the piece should address",
+          "Point or question the piece should address"
+        ],
+        "format_options": [
+          "Format option 1 e.g. Explainer for technical buyers",
+          "Format option 2 e.g. Buyers checklist",
+          "Format option 3 e.g. Opinion piece"
+        ]
+      },
+      "priority": true,
+      "supporting_papers": [
+        {
+          "title": "Full paper title",
+          "authors": ["Last First", "Last First"],
+          "date": "YYYY-MM-DD"
+        }
+      ]
     }
   ],
   "watch_list": [
     {
       "title": "Trend title",
-      "category": "...",
+      "category": "LLMs or AI Agents & Automation or GPU & Infrastructure",
       "why_watching": "One sentence on why this is worth monitoring",
       "signal_so_far": "Emerging"
     }
@@ -62,11 +92,12 @@ OUTPUT FORMAT — respond with valid JSON only, no other text:
 }
 
 Rules:
-- Identify 5–12 trends total across all three categories (quality over quantity)
-- Set priority: true ONLY when audience_lane is "All Three"
-- The watch_list is for signals too early to act on but worth tracking (2–5 items)
+- Identify 5-12 trends total across all three categories (quality over quantity)
+- Set priority: true ONLY when all three audience lanes apply
+- audience_lanes must always be a list — never use All Three as a string
+- The watch_list is for signals too early to act on but worth tracking (2-5 items)
 - Skip papers that are purely theoretical with no near-term industry relevance
-- Do NOT include papers about niche sub-problems with no broad applicability
+- supporting_papers: include up to 3, with real author names and dates from the paper metadata
 - Return valid JSON only — no markdown fences, no explanation text
 """
 
@@ -79,33 +110,27 @@ def analyze_trends(papers: list[dict]) -> dict:
     if not papers:
         return {"trends": [], "watch_list": []}
 
-    # Format papers for the prompt
     papers_text = _format_papers_for_prompt(papers)
 
     client = anthropic.Anthropic()
 
     message = client.messages.create(
         model="claude-opus-4-6",
-        max_tokens=4096,
+        max_tokens=6000,
         system=SYSTEM_PROMPT,
         messages=[
             {
                 "role": "user",
-                "content": f"""Here are {len(papers)} recent arXiv papers from the past 24–48 hours.
-Identify the most meaningful trends and provide your analysis.
-
-{papers_text}""",
+                "content": f"Here are {len(papers)} recent arXiv papers from the past 24-48 hours. Identify the most meaningful trends and provide your analysis.\n\n{papers_text}",
             }
         ],
     )
 
     raw = message.content[0].text.strip()
 
-    # Parse JSON response
     try:
         result = json.loads(raw)
     except json.JSONDecodeError:
-        # If Claude wrapped in markdown fences, strip them
         if "```" in raw:
             raw = raw.split("```")[1]
             if raw.startswith("json"):
