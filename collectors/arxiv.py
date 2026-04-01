@@ -97,7 +97,7 @@ def filter_relevant_papers(papers: list[dict]) -> list[dict]:
 
     # Sort by relevance score descending, keep top 40 to manage Claude API cost
     scored.sort(key=lambda p: p["relevance_score"], reverse=True)
-    return scored[:40]
+    return scored[:25]
 
 
 def _parse_arxiv_response(xml_text: str) -> list[dict]:

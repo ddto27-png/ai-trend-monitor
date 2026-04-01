@@ -116,7 +116,7 @@ def analyze_trends(papers: list[dict]) -> dict:
 
     message = client.messages.create(
         model="claude-opus-4-6",
-        max_tokens=6000,
+        max_tokens=8192,
         system=SYSTEM_PROMPT,
         messages=[
             {
