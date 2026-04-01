@@ -18,6 +18,7 @@ load_dotenv()
 from collectors.arxiv import fetch_papers, filter_relevant_papers, TOPIC_KEYWORDS
 from collectors.hackernews import fetch_stories, filter_relevant_stories
 from collectors.reddit import fetch_posts, filter_relevant_posts
+from collectors.rss import fetch_entries, filter_relevant_entries
 from analyzers.claude import analyze_trends
 from publishers.notion import publish_digest
 
@@ -66,6 +67,18 @@ def main():
     except Exception as e:
         print(f"  WARNING: Reddit fetch failed — {e}")
 
+    # ── Step 1d: RSS feeds ───────────────────────────────────────
+    print("[4/4] Fetching RSS feeds (blogs & newsletters)...")
+    try:
+        # Use days_back=2 for RSS since blogs don't publish every day
+        rss_days = max(args.days, 2)
+        entries = fetch_entries(days_back=rss_days)
+        relevant_entries = filter_relevant_entries(entries, TOPIC_KEYWORDS)
+        all_items.extend(relevant_entries)
+        print(f"  {len(relevant_entries)} relevant entries")
+    except Exception as e:
+        print(f"  WARNING: RSS fetch failed — {e}")
+
     if not all_items:
         print("\n  No items collected from any source. Try --days 2.")
         sys.exit(0)
@@ -87,7 +100,7 @@ def main():
     items_for_analysis = all_items[:35]
 
     # ── Step 2: Analyse ──────────────────────────────────────────
-    print("[3/4] Analysing trends with Claude...")
+    print("[5/5] Analysing trends with Claude...")
     try:
         analysis = analyze_trends(items_for_analysis)
     except Exception as e:
@@ -116,12 +129,12 @@ def main():
 
     # ── Step 3: Publish ──────────────────────────────────────────
     if args.dry_run:
-        print("[4/4] Dry run — skipping Notion publish.")
+        print("[5/5] Dry run — skipping Notion publish.")
         import json
         print("\n  Full analysis JSON:")
         print(json.dumps(analysis, indent=2))
     else:
-        print("[4/4] Publishing digest to Notion...")
+        print("[5/5] Publishing digest to Notion...")
         try:
             page_url = publish_digest(analysis, item_count=len(items_for_analysis),
                                       source_counts=source_counts)
