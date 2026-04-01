@@ -22,7 +22,6 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
     trends = analysis.get("trends", [])
     watch_list = analysis.get("watch_list", [])
 
-    # Separate priority trends from category-specific ones
     priority_trends = [t for t in trends if t.get("priority")]
     llm_trends = [t for t in trends if t.get("category") == "LLMs" and not t.get("priority")]
     agent_trends = [t for t in trends if t.get("category") == "AI Agents & Automation" and not t.get("priority")]
@@ -30,7 +29,6 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks = []
 
-    # Header callout
     blocks.append(_callout(
         f"Analysed {paper_count} papers from arXiv (cs.AI, cs.LG, cs.CL) · "
         f"{len(trends)} trends identified · {len(priority_trends)} priority · "
@@ -40,9 +38,7 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks.append(_divider())
 
-    # Priority trends section
-    blocks.append(_heading2("🔥 Priority Trends — Serves All Three Audiences"))
-
+    blocks.append(_heading2("🔥 Priority Trends — Business Buyer · Technical DM · Internal Champion"))
     if priority_trends:
         for trend in priority_trends:
             blocks.extend(_trend_block(trend, is_priority=True))
@@ -51,7 +47,6 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks.append(_divider())
 
-    # LLMs section
     blocks.append(_heading2("📌 Large Language Models (LLMs)"))
     if llm_trends:
         for trend in llm_trends:
@@ -61,7 +56,6 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks.append(_divider())
 
-    # AI Agents section
     blocks.append(_heading2("📌 AI Agents & Automation"))
     if agent_trends:
         for trend in agent_trends:
@@ -71,7 +65,6 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks.append(_divider())
 
-    # GPU & Infrastructure section
     blocks.append(_heading2("📌 GPU & Infrastructure"))
     if gpu_trends:
         for trend in gpu_trends:
@@ -81,12 +74,11 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks.append(_divider())
 
-    # Watch list
     blocks.append(_heading2("💡 Watch List — Too Early to Publish"))
     if watch_list:
         for item in watch_list:
             blocks.append(_callout(
-                f"**{item.get('title', 'Unknown')}** ({item.get('category', '')})\n"
+                f"{item.get('title', 'Unknown')}  ({item.get('category', '')})\n"
                 f"{item.get('why_watching', '')}\n"
                 f"Signal so far: {item.get('signal_so_far', 'Emerging')}",
                 emoji="👀"
@@ -94,8 +86,6 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
     else:
         blocks.append(_paragraph("Nothing on the watch list today."))
 
-    # Notion API: create the page
-    # Split blocks into chunks of 100 (Notion API limit per request)
     response = notion.pages.create(
         parent={"page_id": parent_page_id},
         properties={
@@ -107,7 +97,6 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
     page_id = response["id"]
     page_url = response.get("url", f"https://notion.so/{page_id.replace('-', '')}")
 
-    # Append remaining blocks if we hit the 100-block limit
     if len(blocks) > 100:
         for chunk_start in range(100, len(blocks), 100):
             notion.blocks.children.append(
@@ -124,9 +113,7 @@ def _heading2(text: str) -> dict:
     return {
         "object": "block",
         "type": "heading_2",
-        "heading_2": {
-            "rich_text": [{"type": "text", "text": {"content": text}}]
-        },
+        "heading_2": {"rich_text": [{"type": "text", "text": {"content": text}}]},
     }
 
 
@@ -134,25 +121,15 @@ def _heading3(text: str) -> dict:
     return {
         "object": "block",
         "type": "heading_3",
-        "heading_3": {
-            "rich_text": [{"type": "text", "text": {"content": text}}]
-        },
+        "heading_3": {"rich_text": [{"type": "text", "text": {"content": text}}]},
     }
 
 
-def _paragraph(text: str, bold: bool = False) -> dict:
+def _paragraph(text: str) -> dict:
     return {
         "object": "block",
         "type": "paragraph",
-        "paragraph": {
-            "rich_text": [
-                {
-                    "type": "text",
-                    "text": {"content": text},
-                    "annotations": {"bold": bold},
-                }
-            ]
-        },
+        "paragraph": {"rich_text": [{"type": "text", "text": {"content": text}}]},
     }
 
 
@@ -175,58 +152,98 @@ def _bullet(text: str) -> dict:
     return {
         "object": "block",
         "type": "bulleted_list_item",
-        "bulleted_list_item": {
-            "rich_text": [{"type": "text", "text": {"content": text}}]
-        },
+        "bulleted_list_item": {"rich_text": [{"type": "text", "text": {"content": text}}]},
     }
 
 
 def _trend_block(trend: dict, is_priority: bool = False) -> list[dict]:
-    """
-    Render a single trend as a sequence of Notion blocks.
-    """
+    """Render a single trend as a sequence of Notion blocks."""
     blocks = []
 
     title = trend.get("title", "Untitled Trend")
     prefix = "⭐ PRIORITY — " if is_priority else ""
-
-    # Trend title as H3
     blocks.append(_heading3(f"{prefix}{title}"))
 
-    # Content brief — the most important line
-    brief = trend.get("content_brief", "")
+    # Content Brief
+    brief = trend.get("content_brief", {})
     if brief:
-        blocks.append(_callout(f"BRIEF: {brief}", emoji="✍️"))
+        if isinstance(brief, dict):
+            purpose = brief.get("purpose", "")
+            topic = brief.get("topic", "")
+            points = brief.get("content_points", [])
+            formats = brief.get("format_options", [])
 
-    # Metadata bullets
+            brief_lines = ["CONTENT BRIEF"]
+            if purpose:
+                brief_lines.append(f"Purpose: {purpose}")
+            if topic:
+                brief_lines.append(f"Angle: {topic}")
+            if points:
+                brief_lines.append("\nContent points:")
+                for p in points:
+                    brief_lines.append(f"  - {p}")
+            if formats:
+                brief_lines.append(f"\nFormat options: {' · '.join(formats)}")
+
+            blocks.append(_callout("\n".join(brief_lines), emoji="✍️"))
+        elif isinstance(brief, str):
+            blocks.append(_callout(f"BRIEF: {brief}", emoji="✍️"))
+
+    # Action
     action_emoji = {"Publish Now": "🟢", "Watch 2 Weeks": "🟡", "Skip": "🔴"}.get(
         trend.get("recommended_action", ""), "⚪"
     )
-    blocks.append(_bullet(
-        f"{action_emoji} Action: {trend.get('recommended_action', 'Unknown')}"
-    ))
+    blocks.append(_bullet(f"{action_emoji} Action: {trend.get('recommended_action', 'Unknown')}"))
+
+    # Trend curve + sales pitch risk
     blocks.append(_bullet(
         f"Trend curve: {trend.get('trend_curve', 'Unknown')} · "
-        f"Vendor pitch in 90 days: {trend.get('vendor_pitch_likelihood', 'Unknown')}"
+        f"Vendor sales pitch risk (90 days): {trend.get('sales_pitch_risk', trend.get('vendor_pitch_likelihood', 'Unknown'))} "
+        f"— likely to appear in sales calls; buyers should know how to evaluate it"
     ))
-    blocks.append(_bullet(
-        f"Audience: {trend.get('audience_lane', 'Unknown')}"
-    ))
-    blocks.append(_bullet(
-        f"Signal: {trend.get('signal_quality', 'No assessment.')}"
-    ))
-    blocks.append(_bullet(
-        f"Content gap: {trend.get('content_gap', 'No gap identified.')}"
-    ))
+
+    # Audience lanes
+    lanes = trend.get("audience_lanes", [])
+    if not lanes:
+        lane = trend.get("audience_lane", "")
+        if lane:
+            lanes = [lane]
+    if lanes:
+        blocks.append(_bullet(f"Audiences: {' · '.join(lanes)}"))
+
+    # Signal
+    blocks.append(_bullet(f"Signal: {trend.get('signal_quality', 'No assessment.')}"))
+
+    # Content gap
+    gap_data = trend.get("content_gap", {})
+    if isinstance(gap_data, dict):
+        current = gap_data.get("current_coverage", "")
+        gap = gap_data.get("gap", "")
+        if current:
+            blocks.append(_bullet(f"Current coverage: {current}"))
+        if gap:
+            blocks.append(_bullet(f"Content gap: {gap}"))
+    elif isinstance(gap_data, str):
+        blocks.append(_bullet(f"Content gap: {gap_data}"))
 
     # Supporting papers
     papers = trend.get("supporting_papers", [])
-    if papers:
-        blocks.append(_bullet(
-            f"From papers: {' · '.join(papers[:3])}"
-        ))
+    for paper in papers[:3]:
+        if isinstance(paper, dict):
+            p_title = paper.get("title", "Unknown")
+            p_authors = paper.get("authors", [])
+            p_date = paper.get("date", "")
+            author_str = ", ".join(p_authors[:2])
+            if len(p_authors) > 2:
+                author_str += " et al."
+            cite = f"📄 {p_title}"
+            if author_str:
+                cite += f" — {author_str}"
+            if p_date:
+                cite += f" ({p_date})"
+            blocks.append(_bullet(cite))
+        elif isinstance(paper, str):
+            blocks.append(_bullet(f"📄 {paper}"))
 
-    # Spacer paragraph
     blocks.append(_paragraph(" "))
-
     return blocks
