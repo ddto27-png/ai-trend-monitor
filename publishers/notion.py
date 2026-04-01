@@ -29,6 +29,7 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks = []
 
+    # Header callout
     blocks.append(_callout(
         f"Analysed {paper_count} papers from arXiv (cs.AI, cs.LG, cs.CL) · "
         f"{len(trends)} trends identified · {len(priority_trends)} priority · "
@@ -38,6 +39,7 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks.append(_divider())
 
+    # Priority trends
     blocks.append(_heading2("🔥 Priority Trends — Business Buyer · Technical DM · Internal Champion"))
     if priority_trends:
         for trend in priority_trends:
@@ -47,6 +49,7 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks.append(_divider())
 
+    # LLMs
     blocks.append(_heading2("📌 Large Language Models (LLMs)"))
     if llm_trends:
         for trend in llm_trends:
@@ -56,6 +59,7 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks.append(_divider())
 
+    # AI Agents
     blocks.append(_heading2("📌 AI Agents & Automation"))
     if agent_trends:
         for trend in agent_trends:
@@ -65,6 +69,7 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks.append(_divider())
 
+    # GPU & Infrastructure
     blocks.append(_heading2("📌 GPU & Infrastructure"))
     if gpu_trends:
         for trend in gpu_trends:
@@ -74,6 +79,7 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
 
     blocks.append(_divider())
 
+    # Watch list
     blocks.append(_heading2("💡 Watch List — Too Early to Publish"))
     if watch_list:
         for item in watch_list:
@@ -86,6 +92,7 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
     else:
         blocks.append(_paragraph("Nothing on the watch list today."))
 
+    # Create the page
     response = notion.pages.create(
         parent={"page_id": parent_page_id},
         properties={
@@ -97,6 +104,7 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
     page_id = response["id"]
     page_url = response.get("url", f"https://notion.so/{page_id.replace('-', '')}")
 
+    # Append remaining blocks if over the 100-block API limit
     if len(blocks) > 100:
         for chunk_start in range(100, len(blocks), 100):
             notion.blocks.children.append(
@@ -164,57 +172,51 @@ def _trend_block(trend: dict, is_priority: bool = False) -> list[dict]:
     prefix = "⭐ PRIORITY — " if is_priority else ""
     blocks.append(_heading3(f"{prefix}{title}"))
 
-    # Content Brief
+    # ── Content Brief ────────────────────────────────────────────
     brief = trend.get("content_brief", {})
     if brief:
-        if isinstance(brief, dict):
-            purpose = brief.get("purpose", "")
-            topic = brief.get("topic", "")
-            points = brief.get("content_points", [])
-            formats = brief.get("format_options", [])
+        purpose = brief.get("purpose", "")
+        topic = brief.get("topic", "")
+        points = brief.get("content_points", [])
+        formats = brief.get("format_options", [])
 
-            brief_lines = ["CONTENT BRIEF"]
-            if purpose:
-                brief_lines.append(f"Purpose: {purpose}")
-            if topic:
-                brief_lines.append(f"Angle: {topic}")
-            if points:
-                brief_lines.append("\nContent points:")
-                for p in points:
-                    brief_lines.append(f"  - {p}")
-            if formats:
-                brief_lines.append(f"\nFormat options: {' · '.join(formats)}")
+        brief_lines = ["✍️  CONTENT BRIEF"]
+        if purpose:
+            brief_lines.append(f"Purpose: {purpose}")
+        if topic:
+            brief_lines.append(f"Angle: {topic}")
+        if points:
+            brief_lines.append("\nContent points:")
+            for p in points:
+                brief_lines.append(f"  • {p}")
+        if formats:
+            brief_lines.append(f"\nFormat options: {' · '.join(formats)}")
 
-            blocks.append(_callout("\n".join(brief_lines), emoji="✍️"))
-        elif isinstance(brief, str):
-            blocks.append(_callout(f"BRIEF: {brief}", emoji="✍️"))
+        blocks.append(_callout("\n".join(brief_lines), emoji="✍️"))
 
-    # Action
+    # ── Action & Metadata ────────────────────────────────────────
     action_emoji = {"Publish Now": "🟢", "Watch 2 Weeks": "🟡", "Skip": "🔴"}.get(
         trend.get("recommended_action", ""), "⚪"
     )
-    blocks.append(_bullet(f"{action_emoji} Action: {trend.get('recommended_action', 'Unknown')}"))
+    blocks.append(_bullet(
+        f"{action_emoji} Action: {trend.get('recommended_action', 'Unknown')}"
+    ))
 
-    # Trend curve + sales pitch risk
     blocks.append(_bullet(
         f"Trend curve: {trend.get('trend_curve', 'Unknown')} · "
-        f"Vendor sales pitch risk (90 days): {trend.get('sales_pitch_risk', trend.get('vendor_pitch_likelihood', 'Unknown'))} "
+        f"Vendor sales pitch risk (90 days): {trend.get('sales_pitch_risk', 'Unknown')} "
         f"— likely to appear in sales calls; buyers should know how to evaluate it"
     ))
 
-    # Audience lanes
+    # Audience lanes — always listed individually
     lanes = trend.get("audience_lanes", [])
-    if not lanes:
-        lane = trend.get("audience_lane", "")
-        if lane:
-            lanes = [lane]
     if lanes:
         blocks.append(_bullet(f"Audiences: {' · '.join(lanes)}"))
 
-    # Signal
+    # Signal quality
     blocks.append(_bullet(f"Signal: {trend.get('signal_quality', 'No assessment.')}"))
 
-    # Content gap
+    # Content gap — with current coverage context
     gap_data = trend.get("content_gap", {})
     if isinstance(gap_data, dict):
         current = gap_data.get("current_coverage", "")
@@ -226,7 +228,7 @@ def _trend_block(trend: dict, is_priority: bool = False) -> list[dict]:
     elif isinstance(gap_data, str):
         blocks.append(_bullet(f"Content gap: {gap_data}"))
 
-    # Supporting papers
+    # Supporting papers with authors and dates
     papers = trend.get("supporting_papers", [])
     for paper in papers[:3]:
         if isinstance(paper, dict):

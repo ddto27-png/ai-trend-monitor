@@ -39,24 +39,24 @@ For each trend you identify, assess it across six dimensions:
 6. RECOMMENDED ACTION: Publish Now / Watch 2 Weeks / Skip
 
 7. CONTENT BRIEF: A light roadmap for a writer — not a rigid script, just enough direction.
-   Include: the purpose of the piece, the specific topic/angle, 3-5 content points to hit
-   (these are starting points, not a checklist), and 2-3 format options the writer could choose.
+   Include: the purpose of the piece, the specific topic/angle, 3–5 content points to hit
+   (these are starting points, not a checklist), and 2–3 format options the writer could choose.
 
 OUTPUT FORMAT — respond with valid JSON only, no other text:
 {
   "trends": [
     {
       "title": "Short descriptive trend title",
-      "category": "LLMs or AI Agents & Automation or GPU & Infrastructure",
+      "category": "LLMs" | "AI Agents & Automation" | "GPU & Infrastructure",
       "signal_quality": "...",
-      "sales_pitch_risk": "Yes or Likely or Unlikely or No",
-      "trend_curve": "Emerging or Rising or Peak or Mature",
+      "sales_pitch_risk": "Yes" | "Likely" | "Unlikely" | "No",
+      "trend_curve": "Emerging" | "Rising" | "Peak" | "Mature",
       "audience_lanes": ["Business Buyer", "Technical DM", "Internal Champion"],
       "content_gap": {
         "current_coverage": "Educated guess: current content tends to...",
-        "gap": "What is missing and why it matters..."
+        "gap": "What's missing and why it matters..."
       },
-      "recommended_action": "Publish Now or Watch 2 Weeks or Skip",
+      "recommended_action": "Publish Now" | "Watch 2 Weeks" | "Skip",
       "content_brief": {
         "purpose": "Why this piece matters and what it achieves for the reader",
         "topic": "The specific angle to take",
@@ -66,16 +66,16 @@ OUTPUT FORMAT — respond with valid JSON only, no other text:
           "Point or question the piece should address"
         ],
         "format_options": [
-          "Format option 1 e.g. Explainer for technical buyers",
-          "Format option 2 e.g. Buyers checklist",
-          "Format option 3 e.g. Opinion piece"
+          "Format option 1 (e.g. Explainer for technical buyers)",
+          "Format option 2 (e.g. Buyer's checklist)",
+          "Format option 3 (e.g. Opinion piece)"
         ]
       },
-      "priority": true,
+      "priority": true | false,
       "supporting_papers": [
         {
           "title": "Full paper title",
-          "authors": ["Last First", "Last First"],
+          "authors": ["Last, First", "Last, First"],
           "date": "YYYY-MM-DD"
         }
       ]
@@ -84,7 +84,7 @@ OUTPUT FORMAT — respond with valid JSON only, no other text:
   "watch_list": [
     {
       "title": "Trend title",
-      "category": "LLMs or AI Agents & Automation or GPU & Infrastructure",
+      "category": "LLMs" | "AI Agents & Automation" | "GPU & Infrastructure",
       "why_watching": "One sentence on why this is worth monitoring",
       "signal_so_far": "Emerging"
     }
@@ -92,10 +92,10 @@ OUTPUT FORMAT — respond with valid JSON only, no other text:
 }
 
 Rules:
-- Identify 5-12 trends total across all three categories (quality over quantity)
+- Identify 5–12 trends total across all three categories (quality over quantity)
 - Set priority: true ONLY when all three audience lanes apply
-- audience_lanes must always be a list — never use All Three as a string
-- The watch_list is for signals too early to act on but worth tracking (2-5 items)
+- audience_lanes must always be a list — never use "All Three" as a string
+- The watch_list is for signals too early to act on but worth tracking (2–5 items)
 - Skip papers that are purely theoretical with no near-term industry relevance
 - supporting_papers: include up to 3, with real author names and dates from the paper metadata
 - Return valid JSON only — no markdown fences, no explanation text
@@ -121,7 +121,10 @@ def analyze_trends(papers: list[dict]) -> dict:
         messages=[
             {
                 "role": "user",
-                "content": f"Here are {len(papers)} recent arXiv papers from the past 24-48 hours. Identify the most meaningful trends and provide your analysis.\n\n{papers_text}",
+                "content": f"""Here are {len(papers)} recent arXiv papers from the past 24–48 hours.
+Identify the most meaningful trends and provide your analysis.
+
+{papers_text}""",
             }
         ],
     )
