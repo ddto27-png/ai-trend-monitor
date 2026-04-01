@@ -10,8 +10,15 @@ import anthropic
 SYSTEM_PROMPT = """You are an expert AI industry analyst who helps content strategists
 identify which AI research trends are worth writing about for enterprise technology audiences.
 
-You receive a batch of recent arXiv papers and must identify the most meaningful trends
-from three buckets: LLMs, AI Agents & Automation, and GPU & Infrastructure.
+You receive a mixed batch of recent items from three sources:
+- arXiv: academic papers (research signal — what's being studied)
+- Hacker News: practitioner discussions (attention signal — what builders are talking about)
+- Reddit (r/MachineLearning, r/LocalLLaMA): community posts (adoption signal — what's being used)
+
+Identify the most meaningful trends across three buckets: LLMs, AI Agents & Automation, and GPU & Infrastructure.
+
+When a trend appears across multiple source types (e.g. an arXiv paper AND HN discussion), that's
+a stronger signal than research alone — weight it accordingly in your signal quality assessment.
 
 For each trend you identify, assess it across six dimensions:
 
@@ -72,10 +79,11 @@ OUTPUT FORMAT — respond with valid JSON only, no other text:
         ]
       },
       "priority": true | false,
-      "supporting_papers": [
+      "supporting_sources": [
         {
-          "title": "Full paper title",
-          "authors": ["Last, First", "Last, First"],
+          "title": "Title of paper, story, or post",
+          "source": "arXiv or Hacker News or Reddit r/MachineLearning or Reddit r/LocalLLaMA",
+          "authors": ["Last, First"],
           "date": "YYYY-MM-DD"
         }
       ]
@@ -96,8 +104,9 @@ Rules:
 - Set priority: true ONLY when all three audience lanes apply
 - audience_lanes must always be a list — never use "All Three" as a string
 - The watch_list is for signals too early to act on but worth tracking (2–5 items)
-- Skip papers that are purely theoretical with no near-term industry relevance
-- supporting_papers: include up to 3, with real author names and dates from the paper metadata
+- Skip items that are purely theoretical with no near-term industry relevance
+- supporting_sources: include up to 3 items per trend, with title, source, authors (if arXiv), and date
+- A trend supported by both research (arXiv) and community discussion (HN/Reddit) is stronger signal
 - Return valid JSON only — no markdown fences, no explanation text
 """
 
@@ -110,7 +119,7 @@ def analyze_trends(papers: list[dict]) -> dict:
     if not papers:
         return {"trends": [], "watch_list": []}
 
-    papers_text = _format_papers_for_prompt(papers)
+    items_text = _format_items_for_prompt(papers)
 
     client = anthropic.Anthropic()
 
@@ -121,10 +130,10 @@ def analyze_trends(papers: list[dict]) -> dict:
         messages=[
             {
                 "role": "user",
-                "content": f"""Here are {len(papers)} recent arXiv papers from the past 24–48 hours.
+                "content": f"""Here are {len(papers)} recent items from arXiv, Hacker News, and Reddit (past 24–48 hours).
 Identify the most meaningful trends and provide your analysis.
 
-{papers_text}""",
+{items_text}""",
             }
         ],
     )
@@ -143,17 +152,34 @@ Identify the most meaningful trends and provide your analysis.
     return result
 
 
-def _format_papers_for_prompt(papers: list[dict]) -> str:
-    """Format papers into a clean text block for the prompt."""
+def _format_items_for_prompt(items: list[dict]) -> str:
+    """Format mixed-source items into a clean text block for the prompt."""
     lines = []
-    for i, paper in enumerate(papers, 1):
-        authors_str = ", ".join(paper.get("authors", []))
-        pub_date = paper["published"].strftime("%Y-%m-%d")
-        lines.append(
-            f"[{i}] {paper['title']}\n"
-            f"    Category hint: {paper.get('topic', 'unknown')}\n"
-            f"    Authors: {authors_str}\n"
-            f"    Published: {pub_date}\n"
-            f"    Abstract: {paper['abstract'][:400]}...\n"
+    for i, item in enumerate(items, 1):
+        source = item.get("source", "unknown")
+        pub_date = item["published"].strftime("%Y-%m-%d")
+        authors_str = ", ".join(item.get("authors", []))
+
+        line = (
+            f"[{i}] {item['title']}\n"
+            f"    Source: {source}\n"
+            f"    Category hint: {item.get('topic', 'unknown')}\n"
+            f"    Date: {pub_date}\n"
         )
+
+        if authors_str:
+            line += f"    Authors: {authors_str}\n"
+
+        if item.get("engagement"):
+            eng = item["engagement"]
+            if "points" in eng:
+                line += f"    Engagement: {eng['points']} HN points, {eng.get('comments', 0)} comments\n"
+            elif "score" in eng:
+                line += f"    Engagement: {eng['score']} upvotes, {eng.get('comments', 0)} comments\n"
+
+        abstract = item.get("abstract", "")
+        if abstract:
+            line += f"    Summary: {abstract[:350]}\n"
+
+        lines.append(line)
     return "\n".join(lines)
