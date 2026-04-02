@@ -83,6 +83,7 @@ OUTPUT FORMAT — respond with valid JSON only, no other text:
         {
           "title": "Title of paper, story, or post",
           "source": "arXiv or Hacker News or Reddit r/MachineLearning or Reddit r/LocalLLaMA",
+          "url": "https://... (the url field from the item)",
           "authors": ["Last, First"],
           "date": "YYYY-MM-DD"
         }
@@ -105,7 +106,7 @@ Rules:
 - audience_lanes must always be a list — never use "All Three" as a string
 - The watch_list is for signals too early to act on but worth tracking (2–5 items)
 - Skip items that are purely theoretical with no near-term industry relevance
-- supporting_sources: include up to 3 items per trend, with title, source, authors (if arXiv), and date
+- supporting_sources: include up to 3 items per trend, with title, source, url (copy from the item's url field), authors (if arXiv), and date
 - A trend supported by both research (arXiv) and community discussion (HN/Reddit) is stronger signal
 - Return valid JSON only — no markdown fences, no explanation text
 """
