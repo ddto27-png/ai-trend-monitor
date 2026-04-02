@@ -9,6 +9,7 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 from collections import Counter
 from dotenv import load_dotenv
@@ -21,6 +22,7 @@ from collectors.reddit import fetch_posts, filter_relevant_posts
 from collectors.rss import fetch_entries, filter_relevant_entries
 from analyzers.claude import analyze_trends
 from publishers.notion import publish_digest
+from publishers.email import send_digest
 
 
 def main():
@@ -128,20 +130,34 @@ def main():
 
     # ── Step 3: Publish ──────────────────────────────────────────
     if args.dry_run:
-        print("[5/5] Dry run — skipping Notion publish.")
+        print("[5/5] Dry run — skipping Notion publish and email.")
         import json
         print("\n  Full analysis JSON:")
         print(json.dumps(analysis, indent=2))
     else:
+        # Notion
         print("[5/5] Publishing digest to Notion...")
+        page_url = ""
         try:
             page_url = publish_digest(analysis, item_count=len(items_for_analysis),
                                       source_counts=source_counts)
-            print(f"  Done! Digest published:")
-            print(f"  {page_url}")
+            print(f"  Done! {page_url}")
         except Exception as e:
             print(f"  ERROR publishing to Notion: {e}")
             sys.exit(1)
+
+        # Email — only if credentials are configured
+        if os.environ.get("GMAIL_USER") and os.environ.get("GMAIL_APP_PASSWORD"):
+            print("  Sending email digest...")
+            try:
+                send_digest(analysis, notion_url=page_url,
+                            source_counts=source_counts,
+                            item_count=len(items_for_analysis))
+            except Exception as e:
+                print(f"  WARNING: Email failed — {e}")
+                print("  (Notion page was still published successfully)")
+        else:
+            print("  Email skipped — GMAIL_USER / GMAIL_APP_PASSWORD not configured")
 
     print(f"\n{'='*60}")
     print("  Pipeline complete.")
