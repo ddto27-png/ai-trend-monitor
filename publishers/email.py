@@ -16,7 +16,7 @@ def send_digest(analysis: dict, notion_url: str, source_counts: dict,
                 item_count: int) -> None:
     """Send the digest as an HTML email via Resend."""
     api_key = os.environ["RESEND_API_KEY"]
-    to_email = os.environ["DIGEST_EMAIL"]
+    to_emails = [e.strip() for e in os.environ["DIGEST_EMAIL"].split(",") if e.strip()]
 
     today = datetime.now(timezone.utc).strftime("%B %d, %Y")
     trends = analysis.get("trends", [])
@@ -37,16 +37,16 @@ def send_digest(analysis: dict, notion_url: str, source_counts: dict,
         },
         json={
             "from": "AI Trend Monitor <onboarding@resend.dev>",
-            "to": [to_email],
+            "to": to_emails,
             "subject": subject,
             "html": html,
         },
         timeout=15,
     )
     response.raise_for_status()
-    print(f"  Email sent to {to_email}")
+    print(f"  Email sent to {', '.join(to_emails)}")
 
-    print(f"  Email sent to {to_email}")
+    print(f"  Email sent to {', '.join(to_emails)}")
 
 
 def _build_html(analysis: dict, notion_url: str, source_counts: dict,
