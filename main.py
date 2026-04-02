@@ -146,8 +146,8 @@ def main():
             print(f"  ERROR publishing to Notion: {e}")
             sys.exit(1)
 
-        # Email — only if credentials are configured
-        if os.environ.get("GMAIL_USER") and os.environ.get("GMAIL_APP_PASSWORD"):
+        # Email — only if Resend is configured
+        if os.environ.get("RESEND_API_KEY") and os.environ.get("DIGEST_EMAIL"):
             print("  Sending email digest...")
             try:
                 send_digest(analysis, notion_url=page_url,
@@ -157,7 +157,7 @@ def main():
                 print(f"  WARNING: Email failed — {e}")
                 print("  (Notion page was still published successfully)")
         else:
-            print("  Email skipped — GMAIL_USER / GMAIL_APP_PASSWORD not configured")
+            print("  Email skipped — RESEND_API_KEY / DIGEST_EMAIL not configured")
 
     print(f"\n{'='*60}")
     print("  Pipeline complete.")

@@ -1,31 +1,25 @@
 """
-Email publisher — sends the daily digest as a formatted HTML email via Gmail SMTP.
-No third-party service needed. Uses Python's built-in smtplib.
+Email publisher — sends the daily digest as a formatted HTML email via Resend.
+Free tier: 3,000 emails/month. Sign up at resend.com.
 
 Required environment variables:
-    GMAIL_USER          — your Gmail address (used to send)
-    GMAIL_APP_PASSWORD  — Gmail App Password (not your regular password)
-    DIGEST_EMAIL        — address to deliver the digest to (can be same as GMAIL_USER)
+    RESEND_API_KEY  — your Resend API key (re_...)
+    DIGEST_EMAIL    — address to deliver the digest to
 """
 
 import os
-import smtplib
-import ssl
+import requests
 from datetime import datetime, timezone
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 
 def send_digest(analysis: dict, notion_url: str, source_counts: dict,
                 item_count: int) -> None:
-    """Send the digest as an HTML email."""
-    gmail_user = os.environ["GMAIL_USER"]
-    gmail_password = os.environ["GMAIL_APP_PASSWORD"]
-    to_email = os.environ.get("DIGEST_EMAIL", gmail_user)
+    """Send the digest as an HTML email via Resend."""
+    api_key = os.environ["RESEND_API_KEY"]
+    to_email = os.environ["DIGEST_EMAIL"]
 
     today = datetime.now(timezone.utc).strftime("%B %d, %Y")
     trends = analysis.get("trends", [])
-    watch_list = analysis.get("watch_list", [])
     priority = [t for t in trends if t.get("priority")]
 
     subject = (
@@ -35,16 +29,22 @@ def send_digest(analysis: dict, notion_url: str, source_counts: dict,
 
     html = _build_html(analysis, notion_url, source_counts, item_count, today)
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = gmail_user
-    msg["To"] = to_email
-    msg.attach(MIMEText(html, "html"))
-
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-        server.login(gmail_user, gmail_password)
-        server.sendmail(gmail_user, to_email, msg.as_string())
+    response = requests.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": "AI Trend Monitor <onboarding@resend.dev>",
+            "to": [to_email],
+            "subject": subject,
+            "html": html,
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+    print(f"  Email sent to {to_email}")
 
     print(f"  Email sent to {to_email}")
 
