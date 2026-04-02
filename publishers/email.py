@@ -162,13 +162,14 @@ def _trend_html(trend: dict, is_priority: bool = False) -> str:
         formats = brief.get("format_options", [])
         points_html = "".join(f"<li style='margin:3px 0;color:#374151;'>{p}</li>" for p in points)
         formats_str = " · ".join(formats)
+        purpose_html = f'<div style="margin-bottom:6px"><strong>Purpose:</strong> <span style="color:#555">{purpose}</span></div>' if purpose else ''
+        topic_html = f'<div style="margin-bottom:6px"><strong>Angle:</strong> <span style="color:#555">{topic}</span></div>' if topic else ''
+        points_list_html = f'<ul style="margin:4px 0 6px 16px;padding:0">{points_html}</ul>' if points else ''
+        formats_html = f'<div style="font-size:12px;color:#888"><strong>Formats:</strong> {formats_str}</div>' if formats else ''
         brief_html = f"""
         <div style="background:#f8fafc;border-left:3px solid #6366f1;padding:12px 14px;margin:10px 0;border-radius:0 4px 4px 0;">
           <div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:6px;">CONTENT BRIEF</div>
-          {"f'<div style=margin-bottom:6px><strong>Purpose:</strong> <span style=color:#555>{purpose}</span></div>' if purpose else ''}
-          {"f'<div style=margin-bottom:6px><strong>Angle:</strong> <span style=color:#555>{topic}</span></div>' if topic else ''}
-          {"f'<ul style=margin:4px 0 6px 16px;padding:0>{points_html}</ul>' if points else ''}
-          {"f'<div style=font-size:12px;color:#888><strong>Formats:</strong> {formats_str}</div>' if formats else ''}
+          {purpose_html}{topic_html}{points_list_html}{formats_html}
         </div>"""
 
     # Content gap
@@ -178,11 +179,9 @@ def _trend_html(trend: dict, is_priority: bool = False) -> str:
         current = gap_data.get("current_coverage", "")
         gap = gap_data.get("gap", "")
         if current or gap:
-            gap_html = f"""
-            <div style="margin:8px 0;font-size:13px;">
-              {"f'<div style=color:#888;margin-bottom:3px><em>{current}</em></div>' if current else ''}
-              {"f'<div style=color:#374151><strong>Gap:</strong> {gap}</div>' if gap else ''}
-            </div>"""
+            current_html = f'<div style="color:#888;margin-bottom:3px"><em>{current}</em></div>' if current else ''
+            gap_text_html = f'<div style="color:#374151"><strong>Gap:</strong> {gap}</div>' if gap else ''
+            gap_html = f'<div style="margin:8px 0;font-size:13px;">{current_html}{gap_text_html}</div>'
 
     # Sources
     sources = trend.get("supporting_sources", trend.get("supporting_papers", []))
