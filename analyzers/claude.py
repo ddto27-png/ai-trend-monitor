@@ -142,15 +142,25 @@ Identify the most meaningful trends and provide your analysis.
     raw = message.content[0].text.strip()
 
     try:
-        result = json.loads(raw)
+        result = _parse_json(raw)
+    except json.JSONDecodeError:
+        # Response was truncated — retry with fewer items
+        print(f"  JSON truncated, retrying with {len(papers[:15])} items...")
+        return analyze_trends(papers[:15])
+
+    return result
+
+
+def _parse_json(raw: str) -> dict:
+    """Parse JSON, stripping markdown fences if present."""
+    try:
+        return json.loads(raw)
     except json.JSONDecodeError:
         if "```" in raw:
             raw = raw.split("```")[1]
             if raw.startswith("json"):
                 raw = raw[4:]
-        result = json.loads(raw.strip())
-
-    return result
+        return json.loads(raw.strip())
 
 
 def _format_items_for_prompt(items: list[dict]) -> str:

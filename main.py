@@ -94,10 +94,9 @@ def main():
         print(f"  • {topic}: {count} items")
     print()
 
-    # Cap total items sent to Claude to control cost and response size
-    # Prioritise by relevance score, keep mix of sources
+    # Cap total items sent to Claude — 25 keeps response well within token limit
     all_items.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
-    items_for_analysis = all_items[:35]
+    items_for_analysis = all_items[:25]
 
     # ── Step 2: Analyse ──────────────────────────────────────────
     print("[5/5] Analysing trends with Claude...")
