@@ -1,10 +1,10 @@
 """
-Email publisher — sends the daily digest as a formatted HTML email via Resend.
-Free tier: 3,000 emails/month. Sign up at resend.com.
+Email publisher — sends a teaser digest email via Resend.
+Shows top 3 trends with a CTA to the full Notion digest.
 
 Required environment variables:
     RESEND_API_KEY  — your Resend API key (re_...)
-    DIGEST_EMAIL    — address to deliver the digest to
+    DIGEST_EMAIL    — comma-separated list of recipient addresses
 """
 
 import os
@@ -14,18 +14,18 @@ from datetime import datetime, timezone
 
 def send_digest(analysis: dict, notion_url: str, source_counts: dict,
                 item_count: int) -> None:
-    """Send the digest as an HTML email via Resend."""
+    """Send the digest teaser email via Resend."""
     api_key = os.environ["RESEND_API_KEY"]
     to_emails = [e.strip() for e in os.environ["DIGEST_EMAIL"].split(",") if e.strip()]
 
     today = datetime.now(timezone.utc).strftime("%B %d, %Y")
     trends = analysis.get("trends", [])
+    watch_list = analysis.get("watch_list", [])
     priority = [t for t in trends if t.get("priority")]
 
-    subject = (
-        f"AI Trend Digest — {today} · "
-        f"{len(trends)} trends · {len(priority)} priority"
-    )
+    # Subject line: direct and informative
+    priority_count = len(priority)
+    subject = f"[AI Trends] {today} — {priority_count} priority trend{'s' if priority_count != 1 else ''} today"
 
     html = _build_html(analysis, notion_url, source_counts, item_count, today)
 
@@ -51,80 +51,100 @@ def send_digest(analysis: dict, notion_url: str, source_counts: dict,
 
 def _build_html(analysis: dict, notion_url: str, source_counts: dict,
                 item_count: int, today: str) -> str:
-    """Build the HTML email body."""
+
     trends = analysis.get("trends", [])
     watch_list = analysis.get("watch_list", [])
-    priority_trends = [t for t in trends if t.get("priority")]
-    llm_trends = [t for t in trends if t.get("category") == "LLMs" and not t.get("priority")]
-    agent_trends = [t for t in trends if t.get("category") == "AI Agents & Automation" and not t.get("priority")]
-    gpu_trends = [t for t in trends if t.get("category") == "GPU & Infrastructure" and not t.get("priority")]
 
-    sources_str = " · ".join(f"{s}: {c}" for s, c in source_counts.items())
+    # Top 3 to feature: priority first, then "Publish Now", then whatever's left
+    priority = [t for t in trends if t.get("priority")]
+    publish_now = [t for t in trends if not t.get("priority") and t.get("recommended_action") == "Publish Now"]
+    remaining = [t for t in trends if not t.get("priority") and t.get("recommended_action") != "Publish Now"]
+    featured = (priority + publish_now + remaining)[:3]
 
-    sections = []
+    total_trends = len(trends)
+    watch_count = len(watch_list)
+    sources_str = " &nbsp;·&nbsp; ".join(f"<strong>{c}</strong> {s}" for s, c in source_counts.items())
+    day_of_week = datetime.now(timezone.utc).strftime("%A")
 
-    # ── Priority trends ──────────────────────────────────────────
-    if priority_trends:
-        items_html = "".join(_trend_html(t, is_priority=True) for t in priority_trends)
-        sections.append(_section("🔥 Priority Trends", items_html,
-                                  bg="#fff8e1", border="#f59e0b"))
+    trend_cards = "".join(_trend_card(t) for t in featured)
 
-    # ── Category sections ────────────────────────────────────────
-    if llm_trends:
-        items_html = "".join(_trend_html(t) for t in llm_trends)
-        sections.append(_section("📌 Large Language Models (LLMs)", items_html))
-
-    if agent_trends:
-        items_html = "".join(_trend_html(t) for t in agent_trends)
-        sections.append(_section("📌 AI Agents & Automation", items_html))
-
-    if gpu_trends:
-        items_html = "".join(_trend_html(t) for t in gpu_trends)
-        sections.append(_section("📌 GPU & Infrastructure", items_html))
-
-    # ── Watch list ───────────────────────────────────────────────
+    # Watch list teaser — titles only, no detail
+    watch_teaser = ""
     if watch_list:
-        watch_html = "".join(
-            f"""<div style="padding:10px 0; border-bottom:1px solid #f0f0f0;">
-              <strong>{w.get('title', '')} <span style="color:#888;font-size:12px;">({w.get('category','')})</span></strong><br>
-              <span style="color:#555;font-size:14px;">{w.get('why_watching','')}</span><br>
-              <span style="color:#aaa;font-size:12px;">Signal: {w.get('signal_so_far','Emerging')}</span>
-            </div>"""
+        watch_titles = "".join(
+            f'<div style="padding:6px 0;border-bottom:1px solid #1e1e1e;font-size:13px;color:#888;">'
+            f'<span style="color:#555;margin-right:8px;">○</span>{w.get("title","")}'
+            f'<span style="color:#444;font-size:11px;margin-left:8px;">{w.get("category","")}</span>'
+            f'</div>'
             for w in watch_list
         )
-        sections.append(_section("💡 Watch List — Too Early to Publish", watch_html,
-                                  bg="#f8f8f8"))
+        watch_teaser = f"""
+        <div style="margin-top:32px;padding:20px 24px;background:#111;border-radius:8px;">
+          <div style="font-size:11px;font-weight:700;color:#555;letter-spacing:1px;margin-bottom:12px;">
+            WATCH LIST — {watch_count} SIGNAL{'S' if watch_count != 1 else ''} EMERGING
+          </div>
+          {watch_titles}
+          <div style="margin-top:12px;font-size:12px;color:#444;font-style:italic;">
+            Too early to publish. Worth knowing.
+          </div>
+        </div>"""
 
     return f"""<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <div style="max-width:680px;margin:0 auto;padding:20px;">
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Trend Monitor</title>
+</head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <div style="max-width:620px;margin:0 auto;padding:32px 20px;">
 
-    <!-- Header -->
-    <div style="background:#111;color:white;padding:24px 28px;border-radius:8px 8px 0 0;">
-      <div style="font-size:13px;color:#aaa;margin-bottom:4px;">AI TREND DIGEST</div>
-      <div style="font-size:24px;font-weight:700;">{today}</div>
-      <div style="font-size:13px;color:#aaa;margin-top:8px;">
-        {item_count} items analysed · {sources_str}
+    <!-- Wordmark -->
+    <div style="margin-bottom:32px;">
+      <span style="font-size:11px;font-weight:700;letter-spacing:2px;color:#444;text-transform:uppercase;">
+        AI Trend Monitor
+      </span>
+    </div>
+
+    <!-- Hero -->
+    <div style="margin-bottom:8px;">
+      <div style="font-size:12px;color:#555;margin-bottom:8px;letter-spacing:0.5px;">
+        {day_of_week}, {today}
+      </div>
+      <div style="font-size:32px;font-weight:800;color:#ffffff;line-height:1.15;margin-bottom:16px;">
+        {total_trends} trends.<br>3 worth your time right now.
+      </div>
+      <div style="font-size:13px;color:#555;line-height:1.6;">
+        Pulled from {item_count} sources today &nbsp;·&nbsp; {sources_str}
       </div>
     </div>
 
-    <!-- Notion link -->
-    <div style="background:#222;padding:12px 28px;">
-      <a href="{notion_url}" style="color:#60a5fa;font-size:13px;text-decoration:none;">
-        → Open full digest in Notion
+    <!-- Divider -->
+    <div style="height:1px;background:#1a1a1a;margin:28px 0;"></div>
+
+    <!-- Top 3 trend cards -->
+    {trend_cards}
+
+    <!-- CTA -->
+    <div style="margin-top:32px;text-align:center;">
+      <a href="{notion_url}"
+         style="display:inline-block;background:#ffffff;color:#0a0a0a;font-size:14px;
+                font-weight:700;padding:14px 32px;border-radius:6px;text-decoration:none;
+                letter-spacing:0.3px;">
+        Read the full digest →
       </a>
+      <div style="margin-top:12px;font-size:12px;color:#444;">
+        Full briefs, content gaps, citations, and watch list in Notion
+      </div>
     </div>
 
-    <!-- Sections -->
-    <div style="background:white;border-radius:0 0 8px 8px;padding:8px 0;">
-      {"".join(sections)}
-    </div>
+    {watch_teaser}
 
     <!-- Footer -->
-    <div style="text-align:center;padding:20px;font-size:12px;color:#aaa;">
-      AI Trend Monitor · Runs daily at 7am UTC
+    <div style="margin-top:40px;padding-top:20px;border-top:1px solid #1a1a1a;
+                font-size:11px;color:#333;text-align:center;line-height:1.8;">
+      AI Trend Monitor &nbsp;·&nbsp; Runs daily at 7am UTC<br>
+      Sources: arXiv · Hacker News · Reddit · Company blogs · Newsletters
     </div>
 
   </div>
@@ -132,87 +152,81 @@ def _build_html(analysis: dict, notion_url: str, source_counts: dict,
 </html>"""
 
 
-def _section(title: str, content_html: str, bg: str = "white",
-             border: str = "#e5e7eb") -> str:
-    return f"""
-    <div style="margin:0;padding:20px 28px;border-bottom:2px solid {border};background:{bg};">
-      <h2 style="margin:0 0 16px 0;font-size:16px;font-weight:700;color:#111;">{title}</h2>
-      {content_html}
-    </div>"""
+def _angle_html(angle: str) -> str:
+    if not angle:
+        return ""
+    return (
+        '<div style="font-size:13px;color:#c7d2fe;font-style:italic;'
+        'border-top:1px solid #1e1e1e;padding-top:10px;margin-top:4px;">'
+        f'&#x270d; {angle}</div>'
+    )
 
 
-def _trend_html(trend: dict, is_priority: bool = False) -> str:
+def _trend_card(trend: dict) -> str:
     title = trend.get("title", "")
+    category = trend.get("category", "")
     action = trend.get("recommended_action", "")
     lanes = trend.get("audience_lanes", [])
     curve = trend.get("trend_curve", "")
-    pitch = trend.get("sales_pitch_risk", trend.get("vendor_pitch_likelihood", ""))
     signal = trend.get("signal_quality", "")
+    is_priority = trend.get("priority", False)
 
-    action_colour = {"Publish Now": "#16a34a", "Watch 2 Weeks": "#d97706", "Skip": "#dc2626"}.get(action, "#888")
-    action_dot = {"Publish Now": "🟢", "Watch 2 Weeks": "🟡", "Skip": "🔴"}.get(action, "⚪")
-
-    # Content brief
+    # Get the one-line angle from the content brief
     brief = trend.get("content_brief", {})
-    brief_html = ""
+    angle = ""
     if isinstance(brief, dict):
-        purpose = brief.get("purpose", "")
-        topic = brief.get("topic", "")
-        points = brief.get("content_points", [])
-        formats = brief.get("format_options", [])
-        points_html = "".join(f"<li style='margin:3px 0;color:#374151;'>{p}</li>" for p in points)
-        formats_str = " · ".join(formats)
-        purpose_html = f'<div style="margin-bottom:6px"><strong>Purpose:</strong> <span style="color:#555">{purpose}</span></div>' if purpose else ''
-        topic_html = f'<div style="margin-bottom:6px"><strong>Angle:</strong> <span style="color:#555">{topic}</span></div>' if topic else ''
-        points_list_html = f'<ul style="margin:4px 0 6px 16px;padding:0">{points_html}</ul>' if points else ''
-        formats_html = f'<div style="font-size:12px;color:#888"><strong>Formats:</strong> {formats_str}</div>' if formats else ''
-        brief_html = f"""
-        <div style="background:#f8fafc;border-left:3px solid #6366f1;padding:12px 14px;margin:10px 0;border-radius:0 4px 4px 0;">
-          <div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:6px;">CONTENT BRIEF</div>
-          {purpose_html}{topic_html}{points_list_html}{formats_html}
-        </div>"""
+        angle = brief.get("topic", "")
 
-    # Content gap
-    gap_data = trend.get("content_gap", {})
-    gap_html = ""
-    if isinstance(gap_data, dict):
-        current = gap_data.get("current_coverage", "")
-        gap = gap_data.get("gap", "")
-        if current or gap:
-            current_html = f'<div style="color:#888;margin-bottom:3px"><em>{current}</em></div>' if current else ''
-            gap_text_html = f'<div style="color:#374151"><strong>Gap:</strong> {gap}</div>' if gap else ''
-            gap_html = f'<div style="margin:8px 0;font-size:13px;">{current_html}{gap_text_html}</div>'
+    # Category colour coding
+    cat_colours = {
+        "LLMs": "#6366f1",
+        "AI Agents & Automation": "#10b981",
+        "GPU & Infrastructure": "#f59e0b",
+    }
+    cat_colour = cat_colours.get(category, "#888")
 
-    # Sources
-    sources = trend.get("supporting_sources", trend.get("supporting_papers", []))
-    source_icons = {"arXiv": "📄", "Hacker News": "🔶",
-                    "Reddit r/MachineLearning": "🟠", "Reddit r/LocalLLaMA": "🟠"}
-    sources_html = ""
-    for s in sources[:3]:
-        if isinstance(s, dict):
-            icon = source_icons.get(s.get("source", ""), "📄")
-            s_title = s.get("title", "")
-            s_url = s.get("url", "")
-            s_source = s.get("source", "")
-            s_date = s.get("date", "")
-            link = f'<a href="{s_url}" style="color:#374151;text-decoration:underline;">{s_title}</a>' if s_url else s_title
-            sources_html += f'<div style="font-size:12px;color:#888;margin:2px 0;">{icon} [{s_source}] {link} {s_date}</div>'
+    # Action badge
+    action_styles = {
+        "Publish Now":    ("background:#052e16;color:#4ade80;", "● Publish Now"),
+        "Watch 2 Weeks":  ("background:#1c1408;color:#fbbf24;", "◐ Watch 2 Weeks"),
+        "Skip":           ("background:#1c0a0a;color:#f87171;", "○ Skip"),
+    }
+    badge_style, badge_text = action_styles.get(action, ("background:#1a1a1a;color:#888;", action))
 
-    priority_badge = '<span style="background:#f59e0b;color:white;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:8px;">PRIORITY</span>' if is_priority else ""
+    priority_marker = f'<span style="font-size:10px;font-weight:700;letter-spacing:1px;color:#f59e0b;margin-right:8px;">★ PRIORITY</span>' if is_priority else ""
+
+    lanes_str = " · ".join(lanes) if lanes else ""
 
     return f"""
-    <div style="padding:14px 0;border-bottom:1px solid #f0f0f0;">
-      <div style="font-size:15px;font-weight:700;color:#111;margin-bottom:6px;">
-        {title}{priority_badge}
+    <div style="margin-bottom:2px;padding:20px 24px;background:#111;border-radius:8px;border-left:3px solid {cat_colour};">
+
+      <!-- Category + action row -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:{cat_colour};text-transform:uppercase;">
+          {priority_marker}{category}
+        </span>
+        <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;{badge_style}">
+          {badge_text}
+        </span>
       </div>
-      <div style="font-size:12px;color:#555;margin-bottom:6px;">
-        <span style="color:{action_colour};font-weight:600;">{action_dot} {action}</span>
-        &nbsp;·&nbsp; {curve}
-        &nbsp;·&nbsp; Audiences: {' · '.join(lanes)}
-        &nbsp;·&nbsp; Vendor pitch risk: {pitch}
+
+      <!-- Title -->
+      <div style="font-size:17px;font-weight:700;color:#ffffff;line-height:1.3;margin-bottom:10px;">
+        {title}
       </div>
-      <div style="font-size:13px;color:#555;margin-bottom:6px;">{signal}</div>
-      {brief_html}
-      {gap_html}
-      {sources_html}
-    </div>"""
+
+      <!-- Signal — one line -->
+      <div style="font-size:13px;color:#888;line-height:1.5;margin-bottom:12px;">
+        {signal[:160]}{'...' if len(signal) > 160 else ''}
+      </div>
+
+      <!-- Angle — the content hook -->
+      {_angle_html(angle)}
+
+      <!-- Meta row -->
+      <div style="margin-top:12px;font-size:11px;color:#444;">
+        {curve} &nbsp;·&nbsp; {lanes_str}
+      </div>
+
+    </div>
+    <div style="height:4px;"></div>"""
