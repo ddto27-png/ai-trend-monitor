@@ -43,9 +43,9 @@ def send_digest(analysis: dict, notion_url: str, source_counts: dict,
         },
         timeout=15,
     )
+    if not response.ok:
+        print(f"  Resend error response: {response.text}")
     response.raise_for_status()
-    print(f"  Email sent to {', '.join(to_emails)}")
-
     print(f"  Email sent to {', '.join(to_emails)}")
 
 
