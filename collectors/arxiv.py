@@ -31,7 +31,9 @@ TOPIC_KEYWORDS = {
 }
 
 # Minimum relevance: paper must match at least this many keywords in any bucket
-MIN_KEYWORD_MATCHES = 1
+# Set to 2 to avoid false positives from generic words (e.g. "inference" in stats papers,
+# "planning" in operations research, "edge" in graph theory)
+MIN_KEYWORD_MATCHES = 2
 
 
 def fetch_papers(days_back: int = 1, max_results: int = 100) -> list[dict]:

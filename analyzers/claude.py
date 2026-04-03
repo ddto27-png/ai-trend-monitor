@@ -106,7 +106,7 @@ Rules:
 - audience_lanes must always be a list — never use "All Three" as a string
 - The watch_list is for signals too early to act on but worth tracking (2–5 items)
 - Skip items that are purely theoretical with no near-term industry relevance
-- supporting_sources: include up to 3 items per trend, with title, source, url (copy from the item's url field), authors (if arXiv), and date
+- supporting_sources: include up to 3 items per trend — copy title, source, url, authors, and date exactly from the item data above. NEVER fabricate or guess a URL. If an item has no URL, omit the url field entirely.
 - A trend supported by both research (arXiv) and community discussion (HN/Reddit) is stronger signal
 - Return valid JSON only — no markdown fences, no explanation text
 """
@@ -171,9 +171,11 @@ def _format_items_for_prompt(items: list[dict]) -> str:
         pub_date = item["published"].strftime("%Y-%m-%d")
         authors_str = ", ".join(item.get("authors", []))
 
+        url = item.get("url", "")
         line = (
             f"[{i}] {item['title']}\n"
             f"    Source: {source}\n"
+            f"    URL: {url}\n"
             f"    Category hint: {item.get('topic', 'unknown')}\n"
             f"    Date: {pub_date}\n"
         )
