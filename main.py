@@ -20,6 +20,7 @@ from collectors.arxiv import fetch_papers, filter_relevant_papers, TOPIC_KEYWORD
 from collectors.hackernews import fetch_stories, filter_relevant_stories
 from collectors.reddit import fetch_posts, filter_relevant_posts
 from collectors.rss import fetch_entries, filter_relevant_entries
+from collectors.relevance_filter import filter_relevant_items
 from analyzers.claude import analyze_trends
 from publishers.notion import publish_digest
 from publishers.email import send_digest
@@ -85,8 +86,20 @@ def main():
         print("\n  No items collected from any source. Try --days 2.")
         sys.exit(0)
 
-    # Summary
-    print(f"\n  Total items: {len(all_items)}")
+    print(f"\n  Raw items collected: {len(all_items)}")
+
+    # ── Step 1e: Semantic relevance filter ───────────────────────
+    # Uses Claude Haiku to verify every item is genuinely about AI/ML.
+    # Drops false positives that keyword matching can't catch.
+    print("[5/5] Running semantic relevance filter...")
+    all_items = filter_relevant_items(all_items)
+
+    if not all_items:
+        print("\n  No relevant items after filtering. Try --days 2.")
+        sys.exit(0)
+
+    # Summary after filtering
+    print(f"\n  Verified items: {len(all_items)}")
     source_counts = Counter(item.get("source", "unknown") for item in all_items)
     topic_counts = Counter(item.get("topic") for item in all_items)
     for source, count in source_counts.items():
@@ -101,7 +114,7 @@ def main():
     items_for_analysis = all_items[:25]
 
     # ── Step 2: Analyse ──────────────────────────────────────────
-    print("[5/5] Analysing trends with Claude...")
+    print("[6/6] Analysing trends with Claude...")
     try:
         analysis = analyze_trends(items_for_analysis)
     except Exception as e:
@@ -130,13 +143,13 @@ def main():
 
     # ── Step 3: Publish ──────────────────────────────────────────
     if args.dry_run:
-        print("[5/5] Dry run — skipping Notion publish and email.")
+        print("[6/6] Dry run — skipping Notion publish and email.")
         import json
         print("\n  Full analysis JSON:")
         print(json.dumps(analysis, indent=2))
     else:
         # Notion
-        print("[5/5] Publishing digest to Notion...")
+        print("[6/6] Publishing digest to Notion...")
         page_url = ""
         try:
             page_url = publish_digest(analysis, item_count=len(items_for_analysis),

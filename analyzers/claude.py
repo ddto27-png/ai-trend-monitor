@@ -120,6 +120,9 @@ def analyze_trends(papers: list[dict]) -> dict:
     if not papers:
         return {"trends": [], "watch_list": []}
 
+    # Build a set of all real URLs from our input so we can verify Claude's output
+    known_urls = {item.get("url", "") for item in papers if item.get("url")}
+
     items_text = _format_items_for_prompt(papers)
 
     client = anthropic.Anthropic()
@@ -148,7 +151,31 @@ Identify the most meaningful trends and provide your analysis.
         print(f"  JSON truncated, retrying with {len(papers[:15])} items...")
         return analyze_trends(papers[:15])
 
+    # Strip any URL that Claude fabricated (not in our known input URLs)
+    result = _verify_source_urls(result, known_urls)
+
     return result
+
+
+def _verify_source_urls(analysis: dict, known_urls: set) -> dict:
+    """
+    Remove any supporting_source URL that wasn't in our input data.
+    If Claude fabricated a URL, it gets stripped rather than published.
+    """
+    fabricated = []
+    for trend in analysis.get("trends", []):
+        for source in trend.get("supporting_sources", []):
+            url = source.get("url", "")
+            if url and url not in known_urls:
+                fabricated.append(url)
+                source.pop("url", None)
+
+    if fabricated:
+        print(f"  URL verification: stripped {len(fabricated)} fabricated URL(s):")
+        for u in fabricated:
+            print(f"    ✗ {u}")
+
+    return analysis
 
 
 def _parse_json(raw: str) -> dict:
