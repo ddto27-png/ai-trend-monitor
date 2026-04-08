@@ -1,0 +1,54 @@
+name: Content Structurer
+
+on:
+  # 09:42 UTC = 01:42 Pacific — 30 minutes after the trend monitor finishes
+  schedule:
+    - cron: "42 9 * * *"
+
+  # Trigger manually from the Actions tab (useful for testing)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run — parse briefs but skip article generation (true/false)"
+        required: false
+        default: "false"
+
+jobs:
+  generate-drafts:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Content Structurer
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_PARENT_PAGE_ID: ${{ secrets.NOTION_PARENT_PAGE_ID }}
+        run: |
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          if [ "$DRY_RUN" = "true" ]; then
+            python -m content_structurer.main --dry-run
+          else
+            python -m content_structurer.main
+          fi
+
+      - name: Upload drafts as artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-drafts-${{ github.run_id }}
+          path: content_structurer/outputs/*.md
+          if-no-files-found: warn
+          retention-days: 30
