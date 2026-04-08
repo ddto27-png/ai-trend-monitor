@@ -1,24 +1,20 @@
-name: AI Trend Monitor
+name: Content Structurer
 
 on:
-  # Run automatically every morning at 7am UTC
+  # 09:42 UTC = 01:42 Pacific — 30 minutes after the trend monitor finishes
   schedule:
-    - cron: "0 7 * * *"
+    - cron: "42 9 * * *"
 
-  # Also allows you to trigger it manually from the GitHub Actions tab
+  # Trigger manually from the Actions tab (useful for testing)
   workflow_dispatch:
     inputs:
-      days_back:
-        description: "How many days back to look for papers (default: 1, use 2 after weekends)"
-        required: false
-        default: "1"
       dry_run:
-        description: "Dry run — analyse but don't publish to Notion (true/false)"
+        description: "Dry run — parse briefs but skip article generation (true/false)"
         required: false
         default: "false"
 
 jobs:
-  run-digest:
+  generate-drafts:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -35,19 +31,24 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run AI Trend Monitor
+      - name: Run Content Structurer
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_PARENT_PAGE_ID: ${{ secrets.NOTION_PARENT_PAGE_ID }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          DIGEST_EMAIL: ${{ secrets.DIGEST_EMAIL }}
         run: |
-          DAYS="${{ github.event.inputs.days_back || '1' }}"
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
-
           if [ "$DRY_RUN" = "true" ]; then
-            python main.py --days "$DAYS" --dry-run
+            python -m content_structurer.main --dry-run
           else
-            python main.py --days "$DAYS"
+            python -m content_structurer.main
           fi
+
+      - name: Upload drafts as artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-drafts-${{ github.run_id }}
+          path: content_structurer/outputs/*.md
+          if-no-files-found: warn
+          retention-days: 30

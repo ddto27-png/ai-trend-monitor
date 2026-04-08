@@ -3,6 +3,7 @@ arXiv collector — fetches recent AI papers from the arXiv API.
 No API key required. Covers cs.AI, cs.LG, cs.CL categories.
 """
 
+import time
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
@@ -30,7 +31,9 @@ TOPIC_KEYWORDS = {
 }
 
 # Minimum relevance: paper must match at least this many keywords in any bucket
-MIN_KEYWORD_MATCHES = 1
+# Set to 2 to avoid false positives from generic words (e.g. "inference" in stats papers,
+# "planning" in operations research, "edge" in graph theory)
+MIN_KEYWORD_MATCHES = 2
 
 
 def fetch_papers(days_back: int = 1, max_results: int = 100) -> list[dict]:
@@ -47,8 +50,16 @@ def fetch_papers(days_back: int = 1, max_results: int = 100) -> list[dict]:
         "sortOrder": "descending",
     }
 
-    response = requests.get(ARXIV_API_URL, params=params, timeout=30)
-    response.raise_for_status()
+    # Retry with exponential backoff on 429 rate limit
+    for attempt in range(3):
+        response = requests.get(ARXIV_API_URL, params=params, timeout=30)
+        if response.status_code == 429:
+            wait = 15 * (attempt + 1)
+            print(f"  arXiv rate limit hit, waiting {wait}s before retry...")
+            time.sleep(wait)
+            continue
+        response.raise_for_status()
+        break
 
     papers = _parse_arxiv_response(response.text)
 
@@ -88,7 +99,7 @@ def filter_relevant_papers(papers: list[dict]) -> list[dict]:
 
     # Sort by relevance score descending, keep top 40 to manage Claude API cost
     scored.sort(key=lambda p: p["relevance_score"], reverse=True)
-    return scored[:40]
+    return scored[:25]
 
 
 def _parse_arxiv_response(xml_text: str) -> list[dict]:

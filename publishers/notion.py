@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 from notion_client import Client
 
 
-def publish_digest(analysis: dict, paper_count: int) -> str:
+def publish_digest(analysis: dict, item_count: int = 0, paper_count: int = 0,
+                   source_counts: dict = None) -> str:
     """
     Create a new Notion page with today's AI trend digest.
     Returns the URL of the created page.
@@ -30,8 +31,15 @@ def publish_digest(analysis: dict, paper_count: int) -> str:
     blocks = []
 
     # Header callout
+    total = item_count or paper_count
+    sources_str = ""
+    if source_counts:
+        sources_str = " · ".join(f"{s}: {c}" for s, c in source_counts.items())
+    else:
+        sources_str = "arXiv"
+
     blocks.append(_callout(
-        f"Analysed {paper_count} papers from arXiv (cs.AI, cs.LG, cs.CL) · "
+        f"Analysed {total} items — {sources_str} · "
         f"{len(trends)} trends identified · {len(priority_trends)} priority · "
         f"Generated {datetime.now(timezone.utc).strftime('%H:%M UTC')}",
         emoji="🤖"
@@ -164,6 +172,25 @@ def _bullet(text: str) -> dict:
     }
 
 
+def _bullet_with_link(prefix: str, link_text: str, url: str, suffix: str = "") -> dict:
+    """Bullet point where one part of the text is a clickable link."""
+    rich_text = []
+    if prefix:
+        rich_text.append({"type": "text", "text": {"content": prefix}})
+    rich_text.append({
+        "type": "text",
+        "text": {"content": link_text, "link": {"url": url}},
+        "annotations": {"underline": True},
+    })
+    if suffix:
+        rich_text.append({"type": "text", "text": {"content": suffix}})
+    return {
+        "object": "block",
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {"rich_text": rich_text},
+    }
+
+
 def _trend_block(trend: dict, is_priority: bool = False) -> list[dict]:
     """Render a single trend as a sequence of Notion blocks."""
     blocks = []
@@ -228,24 +255,37 @@ def _trend_block(trend: dict, is_priority: bool = False) -> list[dict]:
     elif isinstance(gap_data, str):
         blocks.append(_bullet(f"Content gap: {gap_data}"))
 
-    # Supporting papers with authors and dates
-    papers = trend.get("supporting_papers", [])
-    for paper in papers[:3]:
-        if isinstance(paper, dict):
-            p_title = paper.get("title", "Unknown")
-            p_authors = paper.get("authors", [])
-            p_date = paper.get("date", "")
-            author_str = ", ".join(p_authors[:2])
-            if len(p_authors) > 2:
+    # Supporting sources — papers, HN stories, Reddit posts (with clickable links)
+    sources = trend.get("supporting_sources", trend.get("supporting_papers", []))
+    source_icons = {
+        "arXiv": "📄",
+        "Hacker News": "🔶",
+        "Reddit r/MachineLearning": "🟠",
+        "Reddit r/LocalLLaMA": "🟠",
+    }
+    for item in sources[:3]:
+        if isinstance(item, dict):
+            s_title = item.get("title", "Unknown")
+            s_source = item.get("source", "arXiv")
+            s_url = item.get("url", "")
+            s_authors = item.get("authors", [])
+            s_date = item.get("date", "")
+            icon = source_icons.get(s_source, "📄")
+            author_str = ", ".join(s_authors[:2])
+            if len(s_authors) > 2:
                 author_str += " et al."
-            cite = f"📄 {p_title}"
+            prefix = f"{icon} [{s_source}] "
+            suffix = ""
             if author_str:
-                cite += f" — {author_str}"
-            if p_date:
-                cite += f" ({p_date})"
-            blocks.append(_bullet(cite))
-        elif isinstance(paper, str):
-            blocks.append(_bullet(f"📄 {paper}"))
+                suffix += f" — {author_str}"
+            if s_date:
+                suffix += f" ({s_date})"
+            if s_url:
+                blocks.append(_bullet_with_link(prefix, s_title, s_url, suffix))
+            else:
+                blocks.append(_bullet(f"{prefix}{s_title}{suffix}"))
+        elif isinstance(item, str):
+            blocks.append(_bullet(f"📄 {item}"))
 
     blocks.append(_paragraph(" "))
     return blocks
