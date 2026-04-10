@@ -20,6 +20,7 @@ load_dotenv()
 
 from content_structurer.brief_extractor import extract_todays_briefs
 from content_structurer.content_generator import generate_draft, save_draft
+from content_structurer.draft_emailer import send_drafts
 
 OUTPUT_DIR = Path(__file__).parent / "outputs"
 
@@ -38,7 +39,7 @@ def main() -> None:
     print(f"{'='*60}\n")
 
     # ── Step 1: Extract briefs from Notion ───────────────────────
-    print("[1/2] Fetching today's 'Publish Now' briefs from Notion...")
+    print("[1/3] Fetching today's 'Publish Now' briefs from Notion...")
     briefs = extract_todays_briefs()
 
     if not briefs:
@@ -57,8 +58,9 @@ def main() -> None:
         return
 
     # ── Step 2: Generate drafts ───────────────────────────────────
-    print(f"[2/2] Generating drafts with Claude → {OUTPUT_DIR}\n")
+    print(f"[2/3] Generating drafts with Claude → {OUTPUT_DIR}\n")
     saved: list[Path] = []
+    ready_to_email: list[dict] = []
     failed = 0
 
     for i, brief in enumerate(briefs, 1):
@@ -68,6 +70,7 @@ def main() -> None:
             draft = generate_draft(brief)
             path = save_draft(brief, draft, OUTPUT_DIR)
             saved.append(path)
+            ready_to_email.append({**brief, "draft": draft})
             print(f"    ✓ {path.name}\n")
         except Exception as exc:
             print(f"    ✗ Error: {exc}\n")
@@ -79,6 +82,15 @@ def main() -> None:
         print(f", {failed} failed", end="")
     print(f"\n  Output directory: {OUTPUT_DIR}")
     print(f"{'='*60}\n")
+
+    # ── Step 3: Email ─────────────────────────────────────────────
+    if ready_to_email:
+        print("[3/3] Sending drafts by email...")
+        try:
+            send_drafts(ready_to_email)
+        except Exception as exc:
+            print(f"  WARNING: Email failed — {exc}")
+            print("  (Drafts were still saved as artifacts)")
 
 
 def brief_label(n: int) -> str:
