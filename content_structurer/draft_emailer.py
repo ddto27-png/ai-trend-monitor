@@ -69,6 +69,7 @@ def _build_html(briefs_and_drafts: list[dict], today: str) -> str:
         trend_curve = item.get("trend_curve", "")
 
         format_choice, article_html = _md_to_html(draft)
+        x_post = item.get("x_post", "")
 
         format_badge = (
             f'<span style="font-size:11px;font-weight:600;padding:3px 10px;'
@@ -80,6 +81,8 @@ def _build_html(briefs_and_drafts: list[dict], today: str) -> str:
             f'<div style="font-size:13px;color:#6366f1;font-style:italic;'
             f'margin-bottom:16px;">Angle: {angle}</div>'
         ) if angle else ""
+
+        x_post_html = _build_x_post_html(x_post) if x_post else ""
 
         separator = (
             '<div style="height:1px;background:#1e1e1e;margin:40px 0;"></div>'
@@ -98,6 +101,7 @@ def _build_html(briefs_and_drafts: list[dict], today: str) -> str:
             <span style="font-size:11px;color:#444;"> &nbsp;·&nbsp; {audiences}</span>
           </div>
           {angle_line}
+          {x_post_html}
           <div style="height:1px;background:#1a1a1a;margin:16px 0 24px;"></div>
           <div style="font-family:Georgia,'Times New Roman',serif;">
             {article_html}
@@ -208,3 +212,37 @@ def _inline_md(text: str) -> str:
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
     return text
+
+
+# ── X Post renderer ───────────────────────────────────────────────────────────
+
+def _build_x_post_html(post: str) -> str:
+    """
+    Render the X post (single or thread) as an email-friendly HTML block.
+    Threads are rendered as numbered cards stacked vertically.
+    """
+    from content_structurer.x_post_generator import parse_thread
+
+    posts = parse_thread(post)
+    is_thread = len(posts) > 1
+
+    label = "X THREAD" if is_thread else "X POST"
+
+    cards_html = ""
+    for idx, p in enumerate(posts):
+        border_top = (
+            'border-top:1px solid #1e293b;margin-top:10px;padding-top:10px;'
+            if idx > 0 else ""
+        )
+        cards_html += (
+            f'<div style="{border_top}font-size:14px;color:#cbd5e1;'
+            f'line-height:1.65;white-space:pre-wrap;">{p}</div>'
+        )
+
+    return f"""
+    <div style="margin:16px 0 20px;padding:16px 20px;background:#0f172a;
+                border-radius:8px;border-left:3px solid #1d9bf0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:2px;
+                  color:#1d9bf0;margin-bottom:12px;">{label}</div>
+      {cards_html}
+    </div>"""

@@ -21,6 +21,7 @@ load_dotenv()
 from content_structurer.brief_extractor import extract_todays_briefs
 from content_structurer.content_generator import generate_draft, save_draft
 from content_structurer.draft_emailer import send_drafts
+from content_structurer.x_post_generator import generate_x_post, save_x_post
 
 OUTPUT_DIR = Path(__file__).parent / "outputs"
 
@@ -39,7 +40,7 @@ def main() -> None:
     print(f"{'='*60}\n")
 
     # ── Step 1: Extract briefs from Notion ───────────────────────
-    print("[1/3] Fetching today's 'Publish Now' briefs from Notion...")
+    print("[1/4] Fetching today's 'Publish Now' briefs from Notion...")
     briefs = extract_todays_briefs()
 
     if not briefs:
@@ -58,7 +59,7 @@ def main() -> None:
         return
 
     # ── Step 2: Generate drafts ───────────────────────────────────
-    print(f"[2/3] Generating drafts with Claude → {OUTPUT_DIR}\n")
+    print(f"[2/4] Generating drafts with Claude → {OUTPUT_DIR}\n")
     saved: list[Path] = []
     ready_to_email: list[dict] = []
     failed = 0
@@ -83,9 +84,28 @@ def main() -> None:
     print(f"\n  Output directory: {OUTPUT_DIR}")
     print(f"{'='*60}\n")
 
-    # ── Step 3: Email ─────────────────────────────────────────────
+    # ── Step 3: Generate X posts ──────────────────────────────────
+    print(f"[3/4] Generating X posts with Claude → {OUTPUT_DIR}\n")
+    x_failed = 0
+
+    for item in ready_to_email:
+        label = item["title"][:70]
+        print(f"  {label}...")
+        try:
+            x_post = generate_x_post(item, item["draft"])
+            x_path = save_x_post(item, x_post, OUTPUT_DIR)
+            item["x_post"] = x_post
+            print(f"    ✓ {x_path.name}\n")
+        except Exception as exc:
+            print(f"    ✗ Error generating X post: {exc}\n")
+            x_failed += 1
+
+    if x_failed:
+        print(f"  WARNING: {x_failed} X post(s) failed to generate\n")
+
+    # ── Step 4: Email ─────────────────────────────────────────────
     if ready_to_email:
-        print("[3/3] Sending drafts by email...")
+        print("[4/4] Sending drafts by email...")
         try:
             send_drafts(ready_to_email)
         except Exception as exc:
