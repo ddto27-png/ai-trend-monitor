@@ -4,6 +4,7 @@ then uses Claude to write either a single X post or a short thread (2–4 posts)
 in the author's exact voice.
 """
 
+import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -236,9 +237,78 @@ Thread: write each post on its own block, separated by a blank line, labeled at 
 No meta-commentary. No "Here is the post:". No markdown headers. No explanations."""
 
 
-def generate_x_post(brief: dict, draft: str) -> str:
+VALIDATOR_SYSTEM_PROMPT = """You are a voice quality evaluator for a specific author's X posts. \
+Your job is to run 8 checks against a draft and return a structured JSON verdict.
+
+The 8 checks (evaluate each independently and honestly):
+
+1. names_or_personifies
+   Does the post name or personify something — a concept, tool, behavior, or mechanism — \
+giving it a distinct identity? (e.g. "The Bouncers", "speed-vessel", "The Overfitting of \
+the racing world"). Generic labels like "the model" or "the tool" do not count.
+
+2. specific_outside_analogy
+   Does the post use a specific, unexpected analogy drawn from outside the tech world — and \
+is it precise (structurally maps to the idea) rather than decorative (just sounds clever)? \
+Tech-to-tech comparisons do not pass this check. No analogy at all passes only if the post \
+has exceptional specificity everywhere else.
+
+3. discovery_not_report
+   Does it feel like a discovery being shared — something the author just figured out or \
+noticed — rather than a neutral fact being reported or a press release being summarized?
+
+4. thinks_out_loud
+   Does the writing feel like thinking out loud? Look for: sentences that build on each other, \
+mid-thought asides, direct address to the reader, self-correction, or a "wait, here's the \
+thing" quality. Smooth polished copy fails this check.
+
+5. real_insight_under_playfulness
+   Is there a real, specific insight underneath any playfulness — something that would still \
+be worth saying even without the personality layer? Zero hollow enthusiasm: lines like \
+"this changes everything" or "you're going to want to see this" are automatic failures.
+
+6. topic_specificity
+   Could this post have been written about a different AI product, tool, or trend with only \
+minor edits? If yes, it fails. The post must be so specific to this particular topic that \
+transplanting it elsewhere would require a full rewrite.
+
+7. smart_friend_tone
+   Does it sound like a smart friend texting you something they just figured out — not a \
+newsletter, not a LinkedIn post, not a press release? The test: would you forward this to \
+someone you respect, without feeling like you're sharing marketing?
+
+8. purposeful_hashtags
+   Are hashtags editorial (they name something specific in context) and limited (2–5 max)? \
+Hashtags stuffed at the end for reach, or more than 5 total, fail this check.
+
+────────────────────────────────────
+OUTPUT FORMAT — return only valid JSON, nothing else:
+
+{
+  "checks": {
+    "names_or_personifies":       {"passed": true/false, "note": "one sentence why"},
+    "specific_outside_analogy":   {"passed": true/false, "note": "one sentence why"},
+    "discovery_not_report":       {"passed": true/false, "note": "one sentence why"},
+    "thinks_out_loud":            {"passed": true/false, "note": "one sentence why"},
+    "real_insight_under_playfulness": {"passed": true/false, "note": "one sentence why"},
+    "topic_specificity":          {"passed": true/false, "note": "one sentence why"},
+    "smart_friend_tone":          {"passed": true/false, "note": "one sentence why"},
+    "purposeful_hashtags":        {"passed": true/false, "note": "one sentence why"}
+  },
+  "failed_count": <integer>,
+  "failed_checks": ["check_name", ...],
+  "feedback": "Specific, actionable rewrite instructions for the generator. Name exactly \
+what is missing and how to fix it. Be direct — this goes straight back into the next \
+generation prompt. 2–4 sentences max."
+}
+
+No extra keys. No markdown. No explanation outside the JSON."""
+
+
+def generate_x_post(brief: dict, draft: str, feedback: str | None = None) -> str:
     """
     Call Claude to generate an X post or thread from a content brief and article draft.
+    Optionally accepts validator feedback from a prior failed attempt.
     Returns the raw post text (single post or labeled thread).
     """
     client = get_client()
@@ -247,22 +317,93 @@ def generate_x_post(brief: dict, draft: str) -> str:
         model="claude-opus-4-6",
         max_tokens=1024,
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": _build_prompt(brief, draft)}],
+        messages=[{"role": "user", "content": _build_prompt(brief, draft, feedback)}],
     )
 
     return message.content[0].text.strip()
 
 
-def save_x_post(brief: dict, post: str, output_dir: Path) -> Path:
+def validate_x_post(post: str, brief: dict) -> tuple[bool, list[str], str, dict]:
+    """
+    Run the 8-point voice check against a generated X post.
+    Returns (passed, failed_check_names, feedback_for_regeneration, checks_detail).
+    passed is True when at most 1 check fails.
+    checks_detail maps check name → {"passed": bool, "note": str}.
+    """
+    client = get_client()
+
+    prompt = (
+        f"Evaluate this X post draft against all 8 checks.\n\n"
+        f"TOPIC: {brief['title']}\n"
+        f"ANGLE: {brief.get('angle', '')}\n\n"
+        f"DRAFT:\n{post}"
+    )
+
+    message = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=512,
+        system=VALIDATOR_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    raw = message.content[0].text.strip()
+
+    try:
+        result = json.loads(raw)
+        checks = result.get("checks", {})
+        failed = result.get("failed_checks", [])
+        feedback = result.get("feedback", "")
+        passed = len(failed) <= 1
+        return passed, failed, feedback, checks
+    except (json.JSONDecodeError, KeyError):
+        # If the validator itself errors, pass through rather than blocking forever
+        return True, [], "", {}
+
+
+def generate_and_validate_x_post(
+    brief: dict,
+    draft: str,
+    max_attempts: int = 3,
+) -> tuple[str, bool]:
+    """
+    Generate an X post, validate it, and regenerate with feedback if it fails.
+    Returns (post_text, needs_review).
+    needs_review is True only if the post still fails after max_attempts.
+    """
+    feedback: str | None = None
+
+    for attempt in range(1, max_attempts + 1):
+        post = generate_x_post(brief, draft, feedback=feedback)
+        passed, failed_checks, feedback, checks = validate_x_post(post, brief)
+
+        if passed:
+            label = f"attempt {attempt}" if attempt > 1 else "first attempt"
+            print(f"      ✓ Voice check passed ({label})")
+            _print_checks(checks)
+            return post, False
+
+        print(
+            f"      ⚠ Voice check: {len(failed_checks)} check(s) failed "
+            f"(attempt {attempt}/{max_attempts})"
+        )
+        _print_checks(checks)
+
+    print(f"      ✗ Still failing after {max_attempts} attempts — flagging for review")
+    return post, True
+
+
+def save_x_post(brief: dict, post: str, output_dir: Path, needs_review: bool = False) -> Path:
     """
     Save an X post to a markdown file with YAML front-matter.
+    Files that failed validation are suffixed with _NEEDS-REVIEW.
     Returns the path of the saved file.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     slug = _slugify(brief["title"])
-    filepath = output_dir / f"{today}_{slug}_xpost.md"
+    review_flag = "_NEEDS-REVIEW" if needs_review else ""
+    filepath = output_dir / f"{today}_{slug}_xpost{review_flag}.md"
 
     post_type = "thread" if _is_thread(post) else "single"
     audiences = ", ".join(brief.get("audiences", []))
@@ -274,6 +415,7 @@ def save_x_post(brief: dict, post: str, output_dir: Path) -> Path:
         f"audiences: {audiences}\n"
         f"trend_curve: {brief.get('trend_curve', '')}\n"
         f"post_type: {post_type}\n"
+        f"needs_review: {str(needs_review).lower()}\n"
         f"---\n\n"
     )
 
@@ -296,9 +438,23 @@ def parse_thread(post: str) -> list[str]:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _build_prompt(brief: dict, draft: str) -> str:
+def _print_checks(checks: dict) -> None:
+    """Print each check result with its note so trade-offs are visible in logs."""
+    if not checks:
+        return
+    for name, detail in checks.items():
+        mark = "✓" if detail.get("passed") else "✗"
+        note = detail.get("note", "")
+        print(f"        {mark} {name.ljust(34)} {note}")
+
+def _build_prompt(brief: dict, draft: str, feedback: str | None = None) -> str:
     audiences = ", ".join(brief.get("audiences", []))
     points = "\n".join(f"  - {p}" for p in brief.get("content_points", []))
+
+    feedback_block = (
+        f"\n\nPREVIOUS ATTEMPT FAILED VOICE CHECK — fix these specific issues before writing:\n"
+        f"{feedback}"
+    ) if feedback else ""
 
     return f"""Write an X post (or thread) for the following article. \
 Read the full draft to find the sharpest insight worth sharing — don't just summarize \
@@ -317,7 +473,7 @@ KEY POINTS THE ARTICLE COVERS:
 TREND CONTEXT: {brief.get("trend_curve", "")} — {brief.get("signal_quality", "")}
 
 FULL ARTICLE DRAFT:
-{draft}
+{draft}{feedback_block}
 
 Now write the X post or thread. Match the voice from the examples exactly."""
 

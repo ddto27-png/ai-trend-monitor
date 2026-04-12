@@ -21,7 +21,7 @@ load_dotenv()
 from content_structurer.brief_extractor import extract_todays_briefs
 from content_structurer.content_generator import generate_draft, save_draft
 from content_structurer.draft_emailer import send_drafts
-from content_structurer.x_post_generator import generate_x_post, save_x_post
+from content_structurer.x_post_generator import generate_and_validate_x_post, save_x_post
 
 OUTPUT_DIR = Path(__file__).parent / "outputs"
 
@@ -92,10 +92,12 @@ def main() -> None:
         label = item["title"][:70]
         print(f"  {label}...")
         try:
-            x_post = generate_x_post(item, item["draft"])
-            x_path = save_x_post(item, x_post, OUTPUT_DIR)
+            x_post, needs_review = generate_and_validate_x_post(item, item["draft"])
+            x_path = save_x_post(item, x_post, OUTPUT_DIR, needs_review=needs_review)
             item["x_post"] = x_post
-            print(f"    ✓ {x_path.name}\n")
+            item["x_post_needs_review"] = needs_review
+            status = "NEEDS REVIEW — " if needs_review else ""
+            print(f"    ✓ {status}{x_path.name}\n")
         except Exception as exc:
             print(f"    ✗ Error generating X post: {exc}\n")
             x_failed += 1
