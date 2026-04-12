@@ -22,6 +22,7 @@ from collectors.reddit import fetch_posts, filter_relevant_posts
 from collectors.rss import fetch_entries, filter_relevant_entries
 from collectors.relevance_filter import filter_relevant_items
 from analyzers.claude import analyze_trends
+from analyzers.fact_checker import fact_check_analysis
 from publishers.notion import publish_digest
 from publishers.email import send_digest
 
@@ -128,6 +129,13 @@ def main():
     print(f"  Identified {len(trends)} trends ({len(priority)} priority)")
     print(f"  Watch list: {len(watch_list)} items\n")
 
+    # ── Step 3: Accuracy review ──────────────────────────────────
+    print("[7/7] Running accuracy review...")
+    try:
+        analysis = fact_check_analysis(analysis, items_for_analysis)
+    except Exception as e:
+        print(f"  WARNING: Accuracy review failed — {e}")
+
     if priority:
         print("  🔥 Priority trends:")
         for t in priority:
@@ -141,15 +149,15 @@ def main():
 
     print()
 
-    # ── Step 3: Publish ──────────────────────────────────────────
+    # ── Step 4: Publish ──────────────────────────────────────────
     if args.dry_run:
-        print("[6/6] Dry run — skipping Notion publish and email.")
+        print("[7/7] Dry run — skipping Notion publish and email.")
         import json
         print("\n  Full analysis JSON:")
         print(json.dumps(analysis, indent=2))
     else:
         # Notion
-        print("[6/6] Publishing digest to Notion...")
+        print("[7/7] Publishing digest to Notion...")
         page_url = ""
         try:
             page_url = publish_digest(analysis, item_count=len(items_for_analysis),

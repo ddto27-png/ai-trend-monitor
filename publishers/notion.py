@@ -199,6 +199,13 @@ def _trend_block(trend: dict, is_priority: bool = False) -> list[dict]:
     prefix = "⭐ PRIORITY — " if is_priority else ""
     blocks.append(_heading3(f"{prefix}{title}"))
 
+    # ── Accuracy review note ─────────────────────────────────────
+    reviewer_note = trend.get("reviewer_note")
+    if reviewer_note:
+        blocks.append(_callout(f"Accuracy review: {reviewer_note}", emoji="🔍"))
+    else:
+        blocks.append(_callout("Accuracy reviewed — no issues found", emoji="✅"))
+
     # ── Content Brief ────────────────────────────────────────────
     brief = trend.get("content_brief", {})
     if brief:
