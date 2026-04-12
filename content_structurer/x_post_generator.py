@@ -347,6 +347,9 @@ def validate_x_post(post: str, brief: dict) -> tuple[bool, list[str], str, dict]
     )
 
     raw = message.content[0].text.strip()
+    # Strip markdown code fences if the model wrapped the JSON
+    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```$", "", raw)
 
     try:
         result = json.loads(raw)
@@ -354,9 +357,12 @@ def validate_x_post(post: str, brief: dict) -> tuple[bool, list[str], str, dict]
         failed = result.get("failed_checks", [])
         feedback = result.get("feedback", "")
         passed = len(failed) <= 1
+        if not checks:
+            print(f"      (validator returned no check detail — raw: {raw[:120]})")
         return passed, failed, feedback, checks
-    except (json.JSONDecodeError, KeyError):
+    except (json.JSONDecodeError, KeyError) as exc:
         # If the validator itself errors, pass through rather than blocking forever
+        print(f"      (validator parse error: {exc} — raw: {raw[:120]})")
         return True, [], "", {}
 
 
