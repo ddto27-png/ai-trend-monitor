@@ -375,8 +375,8 @@ def generate_and_validate_x_post(
         passed, failed_checks, feedback = validate_x_post(post, brief)
 
         if passed:
-            if attempt > 1:
-                print(f"      ✓ Voice check passed on attempt {attempt}")
+            label = f"attempt {attempt}" if attempt > 1 else "first attempt"
+            print(f"      ✓ Voice check passed ({label})")
             return post, False
 
         print(
