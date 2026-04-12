@@ -323,11 +323,12 @@ def generate_x_post(brief: dict, draft: str, feedback: str | None = None) -> str
     return message.content[0].text.strip()
 
 
-def validate_x_post(post: str, brief: dict) -> tuple[bool, list[str], str]:
+def validate_x_post(post: str, brief: dict) -> tuple[bool, list[str], str, dict]:
     """
     Run the 8-point voice check against a generated X post.
-    Returns (passed, failed_check_names, feedback_for_regeneration).
+    Returns (passed, failed_check_names, feedback_for_regeneration, checks_detail).
     passed is True when at most 1 check fails.
+    checks_detail maps check name → {"passed": bool, "note": str}.
     """
     client = get_client()
 
@@ -349,13 +350,14 @@ def validate_x_post(post: str, brief: dict) -> tuple[bool, list[str], str]:
 
     try:
         result = json.loads(raw)
+        checks = result.get("checks", {})
         failed = result.get("failed_checks", [])
         feedback = result.get("feedback", "")
         passed = len(failed) <= 1
-        return passed, failed, feedback
+        return passed, failed, feedback, checks
     except (json.JSONDecodeError, KeyError):
         # If the validator itself errors, pass through rather than blocking forever
-        return True, [], ""
+        return True, [], "", {}
 
 
 def generate_and_validate_x_post(
@@ -372,19 +374,19 @@ def generate_and_validate_x_post(
 
     for attempt in range(1, max_attempts + 1):
         post = generate_x_post(brief, draft, feedback=feedback)
-        passed, failed_checks, feedback = validate_x_post(post, brief)
+        passed, failed_checks, feedback, checks = validate_x_post(post, brief)
 
         if passed:
             label = f"attempt {attempt}" if attempt > 1 else "first attempt"
             print(f"      ✓ Voice check passed ({label})")
+            _print_checks(checks)
             return post, False
 
         print(
             f"      ⚠ Voice check: {len(failed_checks)} check(s) failed "
             f"(attempt {attempt}/{max_attempts})"
         )
-        for name in failed_checks:
-            print(f"        · {name}")
+        _print_checks(checks)
 
     print(f"      ✗ Still failing after {max_attempts} attempts — flagging for review")
     return post, True
@@ -435,6 +437,15 @@ def parse_thread(post: str) -> list[str]:
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _print_checks(checks: dict) -> None:
+    """Print each check result with its note so trade-offs are visible in logs."""
+    if not checks:
+        return
+    for name, detail in checks.items():
+        mark = "✓" if detail.get("passed") else "✗"
+        note = detail.get("note", "")
+        print(f"        {mark} {name.ljust(34)} {note}")
 
 def _build_prompt(brief: dict, draft: str, feedback: str | None = None) -> str:
     audiences = ", ".join(brief.get("audiences", []))
