@@ -103,6 +103,8 @@ def fact_check_analysis(analysis: dict, source_items: list[dict]) -> dict:
             })
         review_input.append(entry)
 
+    report = {"status": "pending", "corrected": [], "clean_count": 0}
+
     try:
         client = anthropic.Anthropic()
         message = client.messages.create(
@@ -128,40 +130,51 @@ def fact_check_analysis(analysis: dict, source_items: list[dict]) -> dict:
         reviews = {r["title"]: r for r in result.get("reviews", [])}
 
         # Apply corrections back to the analysis
-        issues_found = 0
+        corrected_trends = []
+        clean_trends = []
         for trend in trends:
             title = trend.get("title", "")
             review = reviews.get(title)
 
             if not review:
                 trend["reviewer_note"] = None
+                clean_trends.append(title)
                 continue
 
             trend["reviewer_note"] = review.get("reviewer_note")
 
             if review.get("issues_found"):
-                issues_found += 1
+                corrected_trends.append({
+                    "title": title,
+                    "note": review.get("reviewer_note", ""),
+                })
 
-                # Apply corrected signal_quality if provided
                 corrected_sq = review.get("corrected_signal_quality")
                 if corrected_sq:
                     trend["signal_quality"] = corrected_sq
 
-                # Apply corrected content_points if provided
                 corrected_cp = review.get("corrected_content_points")
                 if corrected_cp and isinstance(corrected_cp, list):
                     if "content_brief" in trend:
                         trend["content_brief"]["content_points"] = corrected_cp
+            else:
+                clean_trends.append(title)
 
-        if issues_found:
-            print(f"  Accuracy review: {issues_found} trend(s) had corrections applied")
+        if corrected_trends:
+            print(f"  Accuracy review: {len(corrected_trends)} correction(s) applied, {len(clean_trends)} passed")
         else:
             print(f"  Accuracy review: all {len(trends)} trend(s) passed — no corrections needed")
 
+        report = {
+            "status": "ok",
+            "corrected": corrected_trends,
+            "clean_count": len(clean_trends),
+        }
+
     except Exception as e:
         print(f"  Accuracy review: skipped due to error ({e}) — analysis unchanged")
-        # Add null reviewer_note to all trends so the Notion publisher knows it was attempted
         for trend in trends:
             trend.setdefault("reviewer_note", None)
+        report = {"status": f"error — {e}", "corrected": [], "clean_count": 0}
 
-    return analysis
+    return analysis, report

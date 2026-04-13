@@ -9,7 +9,7 @@ from notion_client import Client
 
 
 def publish_digest(analysis: dict, item_count: int = 0, paper_count: int = 0,
-                   source_counts: dict = None) -> str:
+                   source_counts: dict = None, qa_report: dict = None) -> str:
     """
     Create a new Notion page with today's AI trend digest.
     Returns the URL of the created page.
@@ -46,6 +46,11 @@ def publish_digest(analysis: dict, item_count: int = 0, paper_count: int = 0,
     ))
 
     blocks.append(_divider())
+
+    # QA audit block
+    if qa_report:
+        blocks.append(_qa_block(qa_report))
+        blocks.append(_divider())
 
     # Priority trends
     blocks.append(_heading2("🔥 Priority Trends — Business Buyer · Technical DM · Internal Champion"))
@@ -189,6 +194,50 @@ def _bullet_with_link(prefix: str, link_text: str, url: str, suffix: str = "") -
         "type": "bulleted_list_item",
         "bulleted_list_item": {"rich_text": rich_text},
     }
+
+
+def _qa_block(qa_report: dict) -> dict:
+    """Render a quality assurance summary callout showing what each check did."""
+    lines = ["🔬  Quality Checks — what ran before this was published\n"]
+
+    # Relevance filter
+    f = qa_report.get("filter", {})
+    kept = f.get("kept", "?")
+    total = f.get("total", "?")
+    dropped = f.get("dropped", [])
+    if dropped:
+        dropped_str = ", ".join(f"[{d['source']}] {d['title'][:50]}" for d in dropped)
+        lines.append(f"Semantic filter: {kept}/{total} items kept — removed: {dropped_str}")
+    else:
+        lines.append(f"Semantic filter: all {total} items confirmed relevant — nothing dropped")
+
+    # URL verification
+    u = qa_report.get("url_verification", {})
+    fabricated = u.get("fabricated", [])
+    if fabricated:
+        fab_str = "; ".join(f['url'][:60] for f in fabricated)
+        lines.append(f"URL verification: {len(fabricated)} fabricated link(s) stripped — {fab_str}")
+    else:
+        lines.append("URL verification: all source URLs verified against input data")
+
+    # Accuracy review
+    a = qa_report.get("accuracy", {})
+    corrected = a.get("corrected", [])
+    clean_count = a.get("clean_count", 0)
+    status = a.get("status", "unknown")
+    if status.startswith("error"):
+        lines.append(f"Accuracy review: skipped ({status})")
+    elif corrected:
+        corrections_str = "; ".join(
+            f"\"{c['title'][:40]}\" — {c['note'][:80]}" for c in corrected
+        )
+        lines.append(
+            f"Accuracy review: {len(corrected)} correction(s) applied, {clean_count} passed — {corrections_str}"
+        )
+    else:
+        lines.append(f"Accuracy review: all {clean_count} trend(s) passed — no corrections needed")
+
+    return _callout("\n".join(lines), emoji="🔬")
 
 
 def _trend_block(trend: dict, is_priority: bool = False) -> list[dict]:

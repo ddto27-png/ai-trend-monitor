@@ -93,7 +93,7 @@ def main():
     # Uses Claude Haiku to verify every item is genuinely about AI/ML.
     # Drops false positives that keyword matching can't catch.
     print("[5/5] Running semantic relevance filter...")
-    all_items = filter_relevant_items(all_items)
+    all_items, filter_report = filter_relevant_items(all_items)
 
     if not all_items:
         print("\n  No relevant items after filtering. Try --days 2.")
@@ -131,10 +131,20 @@ def main():
 
     # ── Step 3: Accuracy review ──────────────────────────────────
     print("[7/7] Running accuracy review...")
+    accuracy_report = {"status": "skipped", "corrected": [], "clean_count": 0}
     try:
-        analysis = fact_check_analysis(analysis, items_for_analysis)
+        analysis, accuracy_report = fact_check_analysis(analysis, items_for_analysis)
     except Exception as e:
         print(f"  WARNING: Accuracy review failed — {e}")
+
+    # Collect all QA data for the Notion summary block
+    qa_report = {
+        "filter": filter_report,
+        "url_verification": {
+            "fabricated": analysis.pop("_qa_fabricated_urls", []),
+        },
+        "accuracy": accuracy_report,
+    }
 
     if priority:
         print("  🔥 Priority trends:")
@@ -161,7 +171,7 @@ def main():
         page_url = ""
         try:
             page_url = publish_digest(analysis, item_count=len(items_for_analysis),
-                                      source_counts=source_counts)
+                                      source_counts=source_counts, qa_report=qa_report)
             print(f"  Done! {page_url}")
         except Exception as e:
             print(f"  ERROR publishing to Notion: {e}")
