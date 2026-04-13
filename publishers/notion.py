@@ -47,9 +47,9 @@ def publish_digest(analysis: dict, item_count: int = 0, paper_count: int = 0,
 
     blocks.append(_divider())
 
-    # QA audit block
+    # QA audit blocks (one per check — avoids Notion's 2000-char limit)
     if qa_report:
-        blocks.append(_qa_block(qa_report))
+        blocks.extend(_qa_blocks(qa_report))
         blocks.append(_divider())
 
     # Priority trends
@@ -196,48 +196,60 @@ def _bullet_with_link(prefix: str, link_text: str, url: str, suffix: str = "") -
     }
 
 
-def _qa_block(qa_report: dict) -> dict:
-    """Render a quality assurance summary callout showing what each check did."""
-    lines = ["🔬  Quality Checks — what ran before this was published\n"]
+def _qa_blocks(qa_report: dict) -> list[dict]:
+    """
+    Render QA audit trail as separate callout blocks — one per check.
+    Keeps each block well under Notion's 2000-char rich_text limit.
+    """
+    blocks = []
 
-    # Relevance filter
+    # ── Relevance filter ─────────────────────────────────────────
     f = qa_report.get("filter", {})
     kept = f.get("kept", "?")
     total = f.get("total", "?")
     dropped = f.get("dropped", [])
     if dropped:
-        dropped_str = ", ".join(f"[{d['source']}] {d['title'][:50]}" for d in dropped)
-        lines.append(f"Semantic filter: {kept}/{total} items kept — removed: {dropped_str}")
+        # Truncate each title so the list can't blow past the limit
+        dropped_lines = "\n".join(
+            f"  ✗ [{d['source']}] {d['title'][:70]}" for d in dropped
+        )
+        filter_text = f"Semantic filter: {kept}/{total} items kept\nRemoved {len(dropped)} off-topic item(s):\n{dropped_lines}"
     else:
-        lines.append(f"Semantic filter: all {total} items confirmed relevant — nothing dropped")
+        filter_text = f"Semantic filter: all {total} items confirmed relevant — nothing removed"
+    blocks.append(_callout(filter_text[:1990], emoji="🔎"))
 
-    # URL verification
+    # ── URL verification ─────────────────────────────────────────
     u = qa_report.get("url_verification", {})
     fabricated = u.get("fabricated", [])
     if fabricated:
-        fab_str = "; ".join(f['url'][:60] for f in fabricated)
-        lines.append(f"URL verification: {len(fabricated)} fabricated link(s) stripped — {fab_str}")
+        fab_lines = "\n".join(
+            f"  ✗ [{f['trend'][:40]}] {f['url'][:80]}" for f in fabricated
+        )
+        url_text = f"URL verification: {len(fabricated)} fabricated link(s) stripped\n{fab_lines}"
     else:
-        lines.append("URL verification: all source URLs verified against input data")
+        url_text = "URL verification: all source URLs verified against input data — none fabricated"
+    blocks.append(_callout(url_text[:1990], emoji="🔗"))
 
-    # Accuracy review
+    # ── Accuracy review ──────────────────────────────────────────
     a = qa_report.get("accuracy", {})
     corrected = a.get("corrected", [])
     clean_count = a.get("clean_count", 0)
     status = a.get("status", "unknown")
     if status.startswith("error"):
-        lines.append(f"Accuracy review: skipped ({status})")
+        acc_text = f"Accuracy review: skipped — {status}"
     elif corrected:
-        corrections_str = "; ".join(
-            f"\"{c['title'][:40]}\" — {c['note'][:80]}" for c in corrected
+        correction_lines = "\n".join(
+            f"  • \"{c['title'][:50]}\" — {c['note'][:120]}" for c in corrected
         )
-        lines.append(
-            f"Accuracy review: {len(corrected)} correction(s) applied, {clean_count} passed — {corrections_str}"
+        acc_text = (
+            f"Accuracy review: {len(corrected)} correction(s) applied, {clean_count} trend(s) passed\n"
+            + correction_lines
         )
     else:
-        lines.append(f"Accuracy review: all {clean_count} trend(s) passed — no corrections needed")
+        acc_text = f"Accuracy review: all {clean_count} trend(s) passed — no corrections needed"
+    blocks.append(_callout(acc_text[:1990], emoji="✅"))
 
-    return _callout("\n".join(lines), emoji="🔬")
+    return blocks
 
 
 def _trend_block(trend: dict, is_priority: bool = False) -> list[dict]:
