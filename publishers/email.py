@@ -44,7 +44,7 @@ def send_digest(analysis: dict, notion_url: str, source_counts: dict,
 
     subject = (
         f"Skitsa · {today} — "
-        f"{priority_count} priority signal{'s' if priority_count != 1 else ''} in AI"
+        f"{priority_count} signal{'s' if priority_count != 1 else ''} worth moving on"
     )
 
     html = _build_html(analysis, notion_url, source_counts, item_count, today)
@@ -126,13 +126,13 @@ def _build_html(analysis: dict, notion_url: str, source_counts: dict,
 
     <!-- Hero headline -->
     <div style="font-family:Georgia,'Cormorant Garamond',serif;font-size:40px;font-weight:300;line-height:1.1;color:{INK};margin-bottom:16px;letter-spacing:-0.01em;">
-      {total_trends} signals.<br>
-      <span style="font-style:italic;color:{TEAL};">Three</span> worth acting on today.
+      {total_trends} signals came in.<br>
+      <span style="font-style:italic;color:{TEAL};">Three</span> earned it.
     </div>
 
     <!-- Source line -->
     <div style="font-size:12px;color:{INK_FAINT};line-height:1.6;margin-bottom:32px;">
-      Drawn from {item_count} sources &nbsp;&middot;&nbsp; {sources_str}
+      This morning across {item_count} sources &nbsp;&middot;&nbsp; {sources_str}
     </div>
 
     <!-- Divider -->
@@ -148,11 +148,11 @@ def _build_html(analysis: dict, notion_url: str, source_counts: dict,
                 font-family:'DM Sans',-apple-system,Helvetica,Arial,sans-serif;
                 font-size:13px;font-weight:500;letter-spacing:0.04em;
                 padding:14px 36px;border-radius:6px;text-decoration:none;">
-        Read the full digest &nbsp;&rarr;
+        Open the full digest &nbsp;&rarr;
       </a>
     </div>
     <div style="text-align:center;font-size:11px;color:{INK_FAINT};margin-top:10px;line-height:1.6;">
-      Full briefs, content gaps, citations, and the complete watch list
+      Every signal, brief, and source — all in one place.
     </div>
 
     {watch_html}
@@ -284,10 +284,10 @@ def _watch_section(watch_list: list, watch_count: int) -> str:
                 border:1px solid {BORDER};border-radius:12px;">
       <div style="font-size:9px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;
                   color:{INK_FAINT};margin-bottom:14px;">
-        Watch List &nbsp;&middot;&nbsp; {watch_count} signal{'s' if watch_count != 1 else ''} emerging
+        On the radar
       </div>
       {items_html}
-      <div style="margin-top:12px;font-size:11px;color:{INK_FAINT};font-style:italic;font-family:Georgia,serif;">
-        Too early to publish. Worth knowing.
+      <div style="margin-top:14px;font-size:12px;color:{INK_FAINT};font-style:italic;font-family:Georgia,serif;">
+        Not ready. Not ignorable.
       </div>
     </div>"""
