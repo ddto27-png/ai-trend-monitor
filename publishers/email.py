@@ -3,8 +3,8 @@ Email publisher — sends a Skitsa-branded teaser digest via Resend.
 Shows top 3 trends with a CTA to the full Notion digest.
 
 Brand: Skitsa — complexity, made beautiful.
-Palette: cream (#f5f2ec), ink (#1c1a16), teal (#01696f)
-Typography: Cormorant Garamond (headlines) · DM Sans (body)
+Palette: cream (#f5f2ec), ink (#1c1a16), plum (#5b2d82)
+Typography: Libre Baskerville (headlines) · DM Sans (body)
 
 Required environment variables:
     RESEND_API_KEY  — your Resend API key (re_...)
@@ -22,13 +22,17 @@ WARM_WHITE  = "#faf9f6"
 INK         = "#1c1a16"
 INK_MUTED   = "#6b6760"
 INK_FAINT   = "#b0aea8"
-TEAL        = "#01696f"
-TEAL_DARK   = "#0c4e54"
-TEAL_LIGHT  = "#cedcd8"
+PLUM        = "#5b2d82"
+PLUM_DARK   = "#1e0a33"
+PLUM_LIGHT  = "#dcc8f0"
 GOLD        = "#c8930a"
 GOLD_LIGHT  = "#f5e9cc"
 BORDER      = "#e2ddd6"
 WHITE       = "#ffffff"
+
+# Font stacks (defined as constants to avoid quote conflicts in f-strings)
+SERIF = "font-family:'Libre Baskerville',Georgia,'Times New Roman',serif"
+SANS  = "font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
 
 
 def send_digest(analysis: dict, notion_url: str, source_counts: dict,
@@ -98,6 +102,8 @@ def _build_html(analysis: dict, notion_url: str, source_counts: dict,
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Skitsa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 </head>
 <body style="margin:0;padding:0;background-color:{CREAM};font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
 
@@ -107,8 +113,8 @@ def _build_html(analysis: dict, notion_url: str, source_counts: dict,
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:36px;">
       <tr>
         <td>
-          <span style="font-family:Georgia,'Cormorant Garamond',serif;font-size:26px;font-weight:400;color:{INK};letter-spacing:0.02em;">
-            Skitsa<span style="color:{TEAL};">.</span>
+          <span style="font-family:'Libre Baskerville',Georgia,'Times New Roman',serif;font-size:26px;font-weight:400;color:{INK};letter-spacing:0.02em;">
+            Skitsa<span style="color:{PLUM};">.</span>
           </span>
         </td>
         <td align="right" style="vertical-align:middle;">
@@ -120,14 +126,14 @@ def _build_html(analysis: dict, notion_url: str, source_counts: dict,
     </table>
 
     <!-- Date line -->
-    <div style="font-size:10px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:{TEAL};margin-bottom:12px;">
+    <div style="font-size:10px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:{PLUM};margin-bottom:12px;">
       {day_of_week} &nbsp;&middot;&nbsp; {today}
     </div>
 
     <!-- Hero headline -->
-    <div style="font-family:Georgia,'Cormorant Garamond',serif;font-size:40px;font-weight:300;line-height:1.1;color:{INK};margin-bottom:16px;letter-spacing:-0.01em;">
+    <div style="font-family:'Libre Baskerville',Georgia,'Times New Roman',serif;font-size:40px;font-weight:300;line-height:1.1;color:{INK};margin-bottom:16px;letter-spacing:-0.01em;">
       {total_trends} signals came in.<br>
-      <span style="font-style:italic;color:{TEAL};">Three</span> earned it.
+      <span style="font-style:italic;color:{PLUM};">Three</span> earned it.
     </div>
 
     <!-- Source line -->
@@ -144,7 +150,7 @@ def _build_html(analysis: dict, notion_url: str, source_counts: dict,
     <!-- CTA -->
     <div style="text-align:center;margin-top:36px;margin-bottom:8px;">
       <a href="{notion_url}"
-         style="display:inline-block;background-color:{TEAL};color:{WHITE};
+         style="display:inline-block;background-color:{PLUM};color:{WHITE};
                 font-family:'DM Sans',-apple-system,Helvetica,Arial,sans-serif;
                 font-size:13px;font-weight:500;letter-spacing:0.04em;
                 padding:14px 36px;border-radius:6px;text-decoration:none;">
@@ -164,8 +170,8 @@ def _build_html(analysis: dict, notion_url: str, source_counts: dict,
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <span style="font-family:Georgia,'Cormorant Garamond',serif;font-size:18px;font-weight:300;font-style:italic;color:{INK_FAINT};">
-            Skitsa<span style="color:{TEAL_LIGHT};">.</span>
+          <span style="font-family:'Libre Baskerville',Georgia,'Times New Roman',serif;font-size:18px;font-weight:300;font-style:italic;color:{INK_FAINT};">
+            Skitsa<span style="color:{PLUM_LIGHT};">.</span>
           </span>
         </td>
         <td align="right" style="vertical-align:middle;">
@@ -203,7 +209,7 @@ def _trend_card(trend: dict) -> str:
 
     # Action badge
     action_styles = {
-        "Publish Now":   (f"background-color:#edf6f4;color:{TEAL_DARK};border:1px solid {TEAL_LIGHT};", "Publish Now"),
+        "Publish Now":   (f"background-color:#f0e8f8;color:{PLUM_DARK};border:1px solid {PLUM_LIGHT};", "Publish Now"),
         "Watch 2 Weeks": (f"background-color:{GOLD_LIGHT};color:#7a5a00;border:1px solid #e8d5a0;",    "Watch 2 Weeks"),
         "Skip":          (f"background-color:#f5f2ec;color:{INK_FAINT};border:1px solid {BORDER};",    "Skip"),
     }
@@ -211,7 +217,7 @@ def _trend_card(trend: dict) -> str:
 
     priority_pill = (
         f'<span style="font-size:9px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;'
-        f'color:{TEAL};border:1px solid {TEAL_LIGHT};padding:2px 7px;border-radius:999px;'
+        f'color:{PLUM};border:1px solid {PLUM_LIGHT};padding:2px 7px;border-radius:999px;'
         f'margin-right:8px;">Priority</span>'
     ) if is_priority else ""
 
@@ -239,7 +245,7 @@ def _trend_card(trend: dict) -> str:
       </table>
 
       <!-- Title -->
-      <div style="font-family:Georgia,'Cormorant Garamond',serif;font-size:22px;font-weight:400;
+      <div style="font-family:'Libre Baskerville',Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;
                   color:{INK};line-height:1.25;margin-bottom:10px;">
         {title}
       </div>
@@ -263,7 +269,7 @@ def _angle_html(angle: str) -> str:
     if not angle:
         return ""
     return (
-        f'<div style="font-size:12px;color:{TEAL};font-style:italic;font-family:Georgia,serif;'
+        f'<div style="font-size:12px;color:{PLUM};font-style:italic;{SERIF};'
         f'border-top:1px solid {BORDER};padding-top:10px;margin-top:4px;line-height:1.6;">'
         f'&#x270d;&nbsp; {angle}</div>'
     )
@@ -273,7 +279,7 @@ def _watch_section(watch_list: list, watch_count: int) -> str:
     items_html = "".join(
         f'<div style="padding:8px 0;border-bottom:1px solid {BORDER};'
         f'font-size:13px;color:{INK_MUTED};line-height:1.5;">'
-        f'<span style="color:{TEAL};margin-right:8px;">&rarr;</span>'
+        f'<span style="color:{PLUM};margin-right:8px;">&rarr;</span>'
         f'{w.get("title", "")}'
         f'<span style="color:{INK_FAINT};font-size:11px;margin-left:8px;">{w.get("category", "")}</span>'
         f'</div>'
@@ -287,7 +293,7 @@ def _watch_section(watch_list: list, watch_count: int) -> str:
         On the radar
       </div>
       {items_html}
-      <div style="margin-top:14px;font-size:12px;color:{INK_FAINT};font-style:italic;font-family:Georgia,serif;">
+      <div style="margin-top:14px;font-size:12px;color:{INK_FAINT};font-style:italic;{SERIF};">
         Not ready. Not ignorable.
       </div>
     </div>"""
