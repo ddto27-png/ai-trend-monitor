@@ -9,9 +9,11 @@ from notion_client import Client
 
 
 def publish_field_digest(analysis: dict, field_config: dict,
-                         article_count: int, source_counts: dict) -> str:
+                         article_count: int, source_counts: dict,
+                         notes: list[dict] | None = None) -> str:
     """
     Publish the cross-disciplinary digest to Notion.
+    notes: optional list of {"insight": dict, "note": str} for Publish Now insights.
     Returns the URL of the created page.
     """
     notion = Client(auth=os.environ["NOTION_API_KEY"])
@@ -74,6 +76,23 @@ def publish_field_digest(analysis: dict, field_config: dict,
             blocks.append(_callout(str(item), emoji="👁"))
     else:
         blocks.append(_paragraph("Nothing on the radar today."))
+
+    # ── Substack notes ────────────────────────────────────────────────────────
+    if notes:
+        blocks.append(_divider())
+        blocks.append(_heading2("Substack Notes — Publish Now"))
+        blocks.append(_paragraph(
+            "500-word drafts in Dana's voice, ready to copy into Substack."
+        ))
+        for entry in notes:
+            insight = entry["insight"]
+            note_text = entry["note"]
+            blocks.append(_divider())
+            blocks.append(_heading3(insight.get("title", "Note")))
+            for para in note_text.split("\n\n"):
+                para = para.strip()
+                if para:
+                    blocks.append(_paragraph(para))
 
     # ── Create page ───────────────────────────────────────────────────────────
     response = notion.pages.create(

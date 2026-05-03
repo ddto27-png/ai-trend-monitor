@@ -19,6 +19,7 @@ import json
 import os
 import sys
 from collections import Counter
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -28,6 +29,7 @@ from skitsa_monitor.collector import fetch_field_articles
 from skitsa_monitor.analyzer import analyze_field
 from skitsa_monitor.notion_publisher import publish_field_digest
 from skitsa_monitor.email_publisher import send_field_digest
+from skitsa_monitor.note_generator import generate_note, save_note
 
 
 def main():
@@ -60,7 +62,7 @@ def main():
     print(f"  Lens:  {field_config['lens']}\n")
 
     # ── Collect ───────────────────────────────────────────────────
-    print(f"[1/3] Collecting articles (last {args.days} days)...")
+    print(f"[1/4] Collecting articles (last {args.days} days)...")
     try:
         articles = fetch_field_articles(field_config["feeds"], days_back=args.days)
     except Exception as e:
@@ -81,7 +83,7 @@ def main():
     print(f"\n  Sending {len(articles_for_analysis)} to Claude for analysis...\n")
 
     # ── Analyse ───────────────────────────────────────────────────
-    print("[2/3] Analysing cross-disciplinary insights with Claude Opus...")
+    print("[2/4] Analysing cross-disciplinary insights with Claude Opus...")
     try:
         analysis = analyze_field(field_config, articles_for_analysis)
     except Exception as e:
@@ -109,13 +111,34 @@ def main():
 
     print()
 
-    # ── Publish ───────────────────────────────────────────────────
+    # ── Generate Substack notes ───────────────────────────────────
+    publish_now = [i for i in insights if i.get("recommended_action") == "Publish Now"]
+    notes: list[dict] = []
+    output_dir = Path(__file__).parent / "outputs"
+
     if args.dry_run:
-        print("[3/3] Dry run — skipping Notion and email.")
+        print(f"[3/4] Dry run — skipping note generation and publish.")
         print("\n  Full analysis JSON:")
         print(json.dumps(analysis, indent=2, default=str))
     else:
-        print("[3/3] Publishing to Notion...")
+        if publish_now:
+            print(f"[3/4] Generating Substack notes for {len(publish_now)} "
+                  f"'Publish Now' insight{'s' if len(publish_now) != 1 else ''}...\n")
+            for insight in publish_now:
+                label = insight["title"][:65]
+                print(f"  {label}...")
+                try:
+                    note = generate_note(insight, field_config)
+                    path = save_note(insight, note, field_config, output_dir)
+                    notes.append({"insight": insight, "note": note})
+                    print(f"    ✓ {path.name}\n")
+                except Exception as e:
+                    print(f"    ✗ Error: {e}\n")
+        else:
+            print("[3/4] No 'Publish Now' insights — skipping note generation.\n")
+
+        # ── Publish ───────────────────────────────────────────────────
+        print("[4/4] Publishing to Notion...")
         page_url = ""
         try:
             page_url = publish_field_digest(
@@ -123,6 +146,7 @@ def main():
                 field_config=field_config,
                 article_count=len(articles_for_analysis),
                 source_counts=dict(source_counts),
+                notes=notes or None,
             )
             print(f"  Done! {page_url}")
         except Exception as e:
@@ -137,6 +161,7 @@ def main():
                     field_config=field_config,
                     notion_url=page_url,
                     article_count=len(articles_for_analysis),
+                    notes=notes or None,
                 )
             except Exception as e:
                 print(f"  WARNING: Email failed — {e}")

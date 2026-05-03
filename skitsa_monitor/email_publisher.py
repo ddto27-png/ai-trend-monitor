@@ -30,8 +30,12 @@ SANS  = "font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helve
 
 
 def send_field_digest(analysis: dict, field_config: dict,
-                      notion_url: str, article_count: int) -> None:
-    """Send the cross-disciplinary digest email via Resend."""
+                      notion_url: str, article_count: int,
+                      notes: list[dict] | None = None) -> None:
+    """
+    Send the cross-disciplinary digest email via Resend.
+    notes: optional list of {"insight": dict, "note": str} for Publish Now insights.
+    """
     api_key    = os.environ["RESEND_API_KEY"]
     to_emails  = [e.strip() for e in os.environ["DIGEST_EMAIL"].split(",") if e.strip()]
 
@@ -46,7 +50,7 @@ def send_field_digest(analysis: dict, field_config: dict,
         f"{p_count} cross-disciplinary signal{'s' if p_count != 1 else ''}"
     )
 
-    html = _build_html(analysis, field_config, notion_url, article_count, today)
+    html = _build_html(analysis, field_config, notion_url, article_count, today, notes)
 
     response = requests.post(
         "https://api.resend.com/emails",
@@ -69,7 +73,8 @@ def send_field_digest(analysis: dict, field_config: dict,
 
 
 def _build_html(analysis: dict, field_config: dict,
-                notion_url: str, article_count: int, today: str) -> str:
+                notion_url: str, article_count: int, today: str,
+                notes: list[dict] | None = None) -> str:
 
     field_name    = field_config["name"]
     field_lens    = field_config["lens"]
@@ -88,6 +93,7 @@ def _build_html(analysis: dict, field_config: dict,
 
     cards_html = "".join(_insight_card(i) for i in featured)
     watch_html = _watch_section(watch_list) if watch_list else ""
+    notes_html = _notes_section(notes) if notes else ""
     summary_html = (
         f'<div style="font-size:14px;color:{INK_MUTED};line-height:1.7;'
         f'margin-bottom:28px;padding:20px 24px;background:{WARM_WHITE};'
@@ -168,6 +174,8 @@ def _build_html(analysis: dict, field_config: dict,
     </div>
 
     {watch_html}
+
+    {notes_html}
 
     <!-- Divider -->
     <div style="height:1px;background-color:{BORDER};margin-top:40px;margin-bottom:24px;"></div>
@@ -291,5 +299,53 @@ def _watch_section(watch_list: list) -> str:
       {items_html}
       <div style="margin-top:14px;font-size:12px;color:{INK_FAINT};font-style:italic;{SERIF};">
         Not ready. Not ignorable.
+      </div>
+    </div>"""
+
+
+def _notes_section(notes: list[dict]) -> str:
+    """Render Substack notes as email-friendly prose cards."""
+    cards = ""
+    for i, entry in enumerate(notes):
+        insight = entry["insight"]
+        note_text = entry["note"]
+        title = insight.get("title", "")
+
+        # Convert double-newlines into paragraph breaks
+        paras = [p.strip() for p in note_text.split("\n\n") if p.strip()]
+        paras_html = "".join(
+            f'<p style="font-size:15px;color:{INK};line-height:1.8;'
+            f'margin:0 0 14px;{SERIF};">{p}</p>'
+            for p in paras
+        )
+
+        border_top = (
+            f'border-top:1px solid {BORDER};margin-top:28px;padding-top:28px;'
+            if i > 0 else ""
+        )
+
+        cards += f"""
+        <div style="{border_top}">
+          <div style="font-size:9px;font-weight:500;letter-spacing:0.18em;
+                      text-transform:uppercase;color:{PLUM};margin-bottom:8px;">
+            Substack Note &nbsp;&middot;&nbsp; Publish Now
+          </div>
+          <div style="{SERIF};font-size:17px;font-weight:400;color:{INK};
+                      line-height:1.3;margin-bottom:18px;">
+            {title}
+          </div>
+          {paras_html}
+        </div>"""
+
+    return f"""
+    <div style="margin-top:40px;padding:24px 24px 20px;background:{WARM_WHITE};
+                border:1px solid {BORDER};border-radius:12px;border-left:3px solid {PLUM};">
+      <div style="font-size:9px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;
+                  color:{INK_FAINT};margin-bottom:20px;">
+        Substack drafts — ready to copy
+      </div>
+      {cards}
+      <div style="margin-top:20px;font-size:12px;color:{INK_FAINT};font-style:italic;{SERIF};">
+        ~500 words each &nbsp;·&nbsp; Dana's voice &nbsp;·&nbsp; moment → texture → turn → closer
       </div>
     </div>"""

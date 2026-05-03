@@ -56,3 +56,12 @@ jobs:
           [ "$DRY_RUN" = "true" ] && CMD="$CMD --dry-run"
 
           $CMD
+
+      - name: Upload notes as artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skitsa-notes-${{ github.run_id }}
+          path: skitsa_monitor/outputs/*.md
+          if-no-files-found: warn
+          retention-days: 30
