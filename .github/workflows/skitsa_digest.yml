@@ -1,0 +1,58 @@
+name: Skitsa Cross-Disciplinary Monitor
+
+on:
+  # Mon=1, Tue=2, Thu=4, Fri=5 at 8am UTC (one hour after the AI digest)
+  schedule:
+    - cron: "0 8 * * 1,2,4,5"
+
+  # Trigger manually — override the field or extend the lookback window
+  workflow_dispatch:
+    inputs:
+      field:
+        description: "Field to run (fashion / architecture / film / retail). Leave blank for today's scheduled field."
+        required: false
+        default: ""
+      days_back:
+        description: "Days back to collect articles (default: 3)"
+        required: false
+        default: "3"
+      dry_run:
+        description: "Dry run — analyse but don't publish (true/false)"
+        required: false
+        default: "false"
+
+jobs:
+  run-skitsa-digest:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Skitsa monitor
+        env:
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY:       ${{ secrets.NOTION_API_KEY }}
+          NOTION_PARENT_PAGE_ID: ${{ secrets.NOTION_PARENT_PAGE_ID }}
+          RESEND_API_KEY:       ${{ secrets.RESEND_API_KEY }}
+          DIGEST_EMAIL:         ${{ secrets.DIGEST_EMAIL }}
+        run: |
+          FIELD="${{ github.event.inputs.field || '' }}"
+          DAYS="${{ github.event.inputs.days_back || '3' }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+
+          CMD="python -m skitsa_monitor.main --days $DAYS"
+          [ -n "$FIELD" ] && CMD="$CMD --field $FIELD"
+          [ "$DRY_RUN" = "true" ] && CMD="$CMD --dry-run"
+
+          $CMD

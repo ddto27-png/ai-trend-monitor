@@ -84,6 +84,54 @@ Runs daily at 7am UTC via GitHub Actions. Also triggerable manually.
 
 ---
 
+## Skitsa Cross-Disciplinary Monitor
+
+```
+┌─────────────────────────────────────────────────────┐
+│  COLLECT                                            │
+│  RSS feeds curated per field:                       │
+│  Fashion   — Business of Fashion, Vogue Business,   │
+│              WWD, Glossy                            │
+│  Architecture — Dezeen, ArchDaily, AD, Archinect    │
+│  Film      — Variety, Deadline, Hollywood Reporter  │
+│  Retail    — Retail Dive, Modern Retail, HBR        │
+└──────────────────────┬──────────────────────────────┘
+                       │  ~20–40 articles (last 3 days)
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│  ANALYSE                                            │
+│  Claude Opus identifies 3–5 cross-disciplinary      │
+│  insights per field run.                            │
+│                                                     │
+│  Per insight:                                       │
+│  Field signal · AI/Marketing connection             │
+│  Teaching moment · Skitsa content angle             │
+│  Recommended action · Verified source URLs          │
+└──────────────────────┬──────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│  URL CHECK — same as AI monitor Gate 2              │
+│  Any URL not found in the input articles is         │
+│  stripped before publication.                       │
+└──────────────────────┬──────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│  PUBLISH                                            │
+│  Notion page — field summary, insights with full    │
+│  analysis, watch list, URL audit note               │
+│                                                     │
+│  Email — top 3 insights, teaching moments,          │
+│  content angles, watch list, CTA to Notion          │
+└─────────────────────────────────────────────────────┘
+```
+
+Runs at 8am UTC — Mon (Fashion), Tue (Architecture), Thu (Film), Fri (Retail).
+Wednesday stays open; the AI monitor covers every day.
+
+---
+
 ## Why three quality gates
 
 The naive version of this pipeline — collect keywords, send to Claude, publish — produces confident-sounding content that is sometimes wrong. A paper about pavement thermal computation matches the keyword "inference." Claude, given no URL to copy, will generate a plausible-looking one. A trend framed as production-ready may be based on a single benchmark paper.
@@ -160,6 +208,7 @@ DIGEST_EMAIL=you@example.com  # comma-separated for multiple recipients
 
 ### 3. Run
 
+**AI Trend Monitor** (daily):
 ```bash
 # Standard run — last 24 hours
 python main.py
@@ -169,6 +218,24 @@ python main.py --days 2
 
 # Dry run — analyse but don't publish
 python main.py --dry-run
+```
+
+**Skitsa Cross-Disciplinary Monitor** (four days a week):
+```bash
+# Today's scheduled field (Mon=Fashion, Tue=Architecture, Thu=Film, Fri=Retail)
+python -m skitsa_monitor.main
+
+# Force a specific field
+python -m skitsa_monitor.main --field fashion
+python -m skitsa_monitor.main --field architecture
+python -m skitsa_monitor.main --field film
+python -m skitsa_monitor.main --field retail
+
+# Extend lookback (default is 3 days)
+python -m skitsa_monitor.main --days 5
+
+# Dry run
+python -m skitsa_monitor.main --dry-run
 ```
 
 ### 4. Automate with GitHub Actions
@@ -183,7 +250,32 @@ RESEND_API_KEY
 DIGEST_EMAIL
 ```
 
-The workflow at `.github/workflows/daily_digest.yml` runs automatically at 7am UTC. Trigger manually from the Actions tab at any time.
+Two workflows run automatically:
+- **`daily_digest.yml`** — AI Trend Monitor, 7am UTC daily
+- **`skitsa_digest.yml`** — Skitsa Cross-Disciplinary Monitor, 8am UTC Mon/Tue/Thu/Fri
+
+Both are triggerable manually from the Actions tab with configurable parameters.
+
+---
+
+## Two monitors, one lens
+
+This repo contains two separate pipelines.
+
+**AI Trend Monitor** scans arXiv, Hacker News, Reddit, and AI blogs for what's moving in the AI/ML space. Built for people who need accurate, actionable intelligence about the AI industry.
+
+**Skitsa Cross-Disciplinary Monitor** asks a different question: what do *other* fields teach us about intelligence, systems, and human behaviour — and how does that apply to AI, product, and marketing strategy?
+
+It runs four days a week, each day a different discipline:
+
+| Day | Field | Lens |
+|---|---|---|
+| Monday | Fashion & Luxury | How creative industries process signals and bet on futures |
+| Tuesday | Architecture & Design | How structural thinking maps to product and experience design |
+| Thursday | Film & Entertainment | How storytelling logic and creative economics apply to content strategy |
+| Friday | Retail & Consumer | How physical-world personalization and demand forecasting inform AI product decisions |
+
+The frame is always `[Field] × AI / Marketing`. The field rotates; the analytical question doesn't.
 
 ---
 
@@ -205,10 +297,19 @@ publishers/
   notion.py             — Notion digest with QA audit trail
   email.py              — Skitsa-branded email teaser
 
-main.py                 — pipeline orchestration
+skitsa_monitor/
+  schedule.py           — field rotation (Mon/Tue/Thu/Fri → discipline)
+  collector.py          — generic RSS collector for any field's feed list
+  analyzer.py           — Claude Opus cross-disciplinary analysis
+  notion_publisher.py   — Notion page per field run
+  email_publisher.py    — Skitsa-branded cross-disciplinary email
+  main.py               — Skitsa monitor pipeline entry point
+
+main.py                 — AI monitor pipeline orchestration
 requirements.txt
 .github/workflows/
-  daily_digest.yml      — GitHub Actions schedule
+  daily_digest.yml      — AI monitor (7am UTC daily)
+  skitsa_digest.yml     — Skitsa monitor (8am UTC Mon/Tue/Thu/Fri)
 ```
 
 ---

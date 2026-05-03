@@ -199,9 +199,9 @@ def _trend_card(trend: dict) -> str:
     brief = trend.get("content_brief", {})
     angle = brief.get("topic", "") if isinstance(brief, dict) else ""
 
-    # Category accent colour — teal for LLMs, gold for Agents, muted for GPU
+    # Category accent colour — plum for LLMs, gold for Agents, muted for GPU
     cat_colours = {
-        "LLMs":                    TEAL,
+        "LLMs":                    PLUM,
         "AI Agents & Automation":  GOLD,
         "GPU & Infrastructure":    INK_MUTED,
     }
