@@ -36,7 +36,7 @@ def publish_field_digest(analysis: dict, field_config: dict,
         f"{len(insights)} insight{'s' if len(insights) != 1 else ''} identified  ·  "
         f"{len(priority_insights)} priority  ·  "
         f"Generated {datetime.now(timezone.utc).strftime('%H:%M UTC')}",
-        emoji="✦"
+        emoji="✨"
     ))
 
     # ── URL check ─────────────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ def _insight_block(insight: dict) -> list[dict]:
     # Teaching moment — the key insight
     teaching = insight.get("teaching_moment", "")
     if teaching:
-        blocks.append(_callout(f"The insight: {teaching}", emoji="✦"))
+        blocks.append(_callout(f"The insight: {teaching}", emoji="💡"))
 
     # Content angle
     angle = insight.get("content_angle", "")
