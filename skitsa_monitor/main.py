@@ -128,11 +128,13 @@ def main():
                 label = insight["title"][:65]
                 print(f"  {label}...")
                 try:
-                    note, needs_review = generate_and_validate_note(insight, field_config)
+                    note, needs_review, tip = generate_and_validate_note(
+                        insight, field_config
+                    )
                     path = save_note(insight, note, field_config, output_dir,
-                                     needs_review=needs_review)
+                                     needs_review=needs_review, tip=tip)
                     notes.append({"insight": insight, "note": note,
-                                  "needs_review": needs_review})
+                                  "needs_review": needs_review, "tip": tip})
                     status = "NEEDS REVIEW — " if needs_review else ""
                     print(f"    ✓ {status}{path.name}\n")
                 except Exception as e:

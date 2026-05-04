@@ -366,14 +366,43 @@ def validate_note(note: str, insight: dict) -> tuple[bool, list[str], str, dict]
         return True, [], "", {}
 
 
+def generate_personal_story_tip(note: str, insight: dict,
+                                field_config: dict) -> str:
+    """
+    Generate a short editorial prompt suggesting the type of personal story
+    or observation Dana could add to make the note feel lived-in.
+    """
+    client = anthropic.Anthropic()
+
+    prompt = (
+        f"Read this Substack note and suggest — in one short paragraph starting with '*' — "
+        f"the type of personal story, observation, or lived moment Dana could weave in to "
+        f"make it feel more grounded in her own experience. Be specific: name the kind of "
+        f"situation, sensory detail, or interaction that would fit naturally. "
+        f"Don't rewrite the note. Don't explain why it would help. Just give the prompt — "
+        f"direct, specific, one paragraph.\n\n"
+        f"Field: {field_config['name']}\n"
+        f"Insight: {insight.get('title', '')}\n\n"
+        f"NOTE:\n{note}"
+    )
+
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=200,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    return message.content[0].text.strip()
+
+
 def generate_and_validate_note(
     insight: dict,
     field_config: dict,
     max_attempts: int = 3,
-) -> tuple[str, bool]:
+) -> tuple[str, bool, str]:
     """
     Generate a Substack note, validate it, and regenerate with feedback if it fails.
-    Returns (note_text, needs_review).
+    Returns (note_text, needs_review, personal_story_tip).
     needs_review is True only if the note still fails after max_attempts.
     """
     feedback: str | None = None
@@ -386,7 +415,8 @@ def generate_and_validate_note(
             label = f"attempt {attempt}" if attempt > 1 else "first attempt"
             print(f"      ✓ Voice check passed ({label})")
             _print_checks(checks)
-            return note, False
+            tip = generate_personal_story_tip(note, insight, field_config)
+            return note, False, tip
 
         print(
             f"      ⚠ Voice check: {len(failed_checks)} check(s) failed "
@@ -395,12 +425,14 @@ def generate_and_validate_note(
         _print_checks(checks)
 
     print(f"      ✗ Still failing after {max_attempts} attempts — flagging for review")
-    return note, True
+    tip = generate_personal_story_tip(note, insight, field_config)
+    return note, True, tip
 
 
 def save_note(insight: dict, note: str, field_config: dict,
-              output_dir: Path, needs_review: bool = False) -> Path:
-    """Save a Substack note as a markdown file."""
+              output_dir: Path, needs_review: bool = False,
+              tip: str = "") -> Path:
+    """Save a Substack note as a markdown file, with an optional personal story tip."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -420,7 +452,11 @@ def save_note(insight: dict, note: str, field_config: dict,
         f"---\n\n"
     )
 
-    path.write_text(front_matter + note, encoding="utf-8")
+    tip_block = (
+        f"\n\n---\n\n{tip}\n"
+    ) if tip else ""
+
+    path.write_text(front_matter + note + tip_block, encoding="utf-8")
     return path
 
 
