@@ -319,7 +319,7 @@ def generate_note(insight: dict, field_config: dict,
 
     message = client.messages.create(
         model="claude-opus-4-6",
-        max_tokens=1500,
+        max_tokens=400,
         system=_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )
