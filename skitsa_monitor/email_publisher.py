@@ -310,6 +310,7 @@ def _notes_section(notes: list[dict]) -> str:
         insight = entry["insight"]
         note_text = entry["note"]
         title = insight.get("title", "")
+        tip = entry.get("tip", "")
 
         # Convert double-newlines into paragraph breaks
         paras = [p.strip() for p in note_text.split("\n\n") if p.strip()]
@@ -318,6 +319,16 @@ def _notes_section(notes: list[dict]) -> str:
             f'margin:0 0 14px;{SERIF};">{p}</p>'
             for p in paras
         )
+
+        tip_html = (
+            f'<div style="margin-top:20px;padding:14px 16px;background:{GOLD_LIGHT};'
+            f'border-left:3px solid {GOLD};border-radius:0 6px 6px 0;">'
+            f'<div style="font-size:9px;font-weight:600;letter-spacing:0.14em;'
+            f'text-transform:uppercase;color:{GOLD};margin-bottom:6px;">Personal story prompt</div>'
+            f'<div style="font-size:13px;color:{INK};line-height:1.7;{SERIF};'
+            f'font-style:italic;">{tip}</div>'
+            f'</div>'
+        ) if tip else ""
 
         border_top = (
             f'border-top:1px solid {BORDER};margin-top:28px;padding-top:28px;'
@@ -335,6 +346,7 @@ def _notes_section(notes: list[dict]) -> str:
             {title}
           </div>
           {paras_html}
+          {tip_html}
         </div>"""
 
     return f"""

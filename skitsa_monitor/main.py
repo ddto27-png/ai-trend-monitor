@@ -29,7 +29,7 @@ from skitsa_monitor.collector import fetch_field_articles
 from skitsa_monitor.analyzer import analyze_field
 from skitsa_monitor.notion_publisher import publish_field_digest
 from skitsa_monitor.email_publisher import send_field_digest
-from skitsa_monitor.note_generator import generate_note, save_note
+from skitsa_monitor.note_generator import generate_and_validate_note, save_note
 
 
 def main():
@@ -128,10 +128,15 @@ def main():
                 label = insight["title"][:65]
                 print(f"  {label}...")
                 try:
-                    note = generate_note(insight, field_config)
-                    path = save_note(insight, note, field_config, output_dir)
-                    notes.append({"insight": insight, "note": note})
-                    print(f"    ✓ {path.name}\n")
+                    note, needs_review, tip = generate_and_validate_note(
+                        insight, field_config
+                    )
+                    path = save_note(insight, note, field_config, output_dir,
+                                     needs_review=needs_review, tip=tip)
+                    notes.append({"insight": insight, "note": note,
+                                  "needs_review": needs_review, "tip": tip})
+                    status = "NEEDS REVIEW — " if needs_review else ""
+                    print(f"    ✓ {status}{path.name}\n")
                 except Exception as e:
                     print(f"    ✗ Error: {e}\n")
         else:
