@@ -204,7 +204,7 @@ STRUCTURE TO FOLLOW
 3. The turn — one sentence connecting to the reader's world. Simple. Direct. Not announced.
 4. The closer — generous ending. Fun fact, quiet intention, specific question. ":)" where earned.
 
-TARGET LENGTH: ~500 words. No headers. No bullets in the core argument. \
+TARGET LENGTH: 100–200 words. No headers. No bullets in the core argument. \
 Pure prose, line-broken like poetry."""
 
 
@@ -278,7 +278,7 @@ Name exactly what is missing and how to fix it. 2-4 sentences max."
 
 
 _PROMPT = """\
-Write a Skitsa Substack Note (~500 words) inspired by this cross-disciplinary insight.
+Write a Skitsa Substack Note (100–200 words) inspired by this cross-disciplinary insight.
 
 Field: {field_name}
 Insight title: {title}
