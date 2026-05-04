@@ -70,6 +70,8 @@ def _build_html(briefs_and_drafts: list[dict], today: str) -> str:
 
         format_choice, article_html = _md_to_html(draft)
         x_post = item.get("x_post", "")
+        substack_note = item.get("substack_note", "")
+        substack_note_tip = item.get("substack_note_tip", "")
 
         format_badge = (
             f'<span style="font-size:11px;font-weight:600;padding:3px 10px;'
@@ -82,6 +84,7 @@ def _build_html(briefs_and_drafts: list[dict], today: str) -> str:
             f'margin-bottom:16px;">Angle: {angle}</div>'
         ) if angle else ""
 
+        substack_note_html = _build_substack_note_html(substack_note, substack_note_tip) if substack_note else ""
         x_post_html = _build_x_post_html(x_post) if x_post else ""
 
         separator = (
@@ -101,6 +104,7 @@ def _build_html(briefs_and_drafts: list[dict], today: str) -> str:
             <span style="font-size:11px;color:#444;"> &nbsp;·&nbsp; {audiences}</span>
           </div>
           {angle_line}
+          {substack_note_html}
           {x_post_html}
           <div style="height:1px;background:#1a1a1a;margin:16px 0 24px;"></div>
           <div style="font-family:Georgia,'Times New Roman',serif;">
@@ -212,6 +216,39 @@ def _inline_md(text: str) -> str:
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
     return text
+
+
+# ── Substack Note renderer ────────────────────────────────────────────────────
+
+def _build_substack_note_html(note: str, tip: str = "") -> str:
+    """Render a Substack note and optional personal story tip as an email card."""
+    paras = [p.strip() for p in note.split("\n\n") if p.strip()]
+    paras_html = "".join(
+        f'<p style="font-size:14px;color:#e2e8f0;line-height:1.8;'
+        f'margin:0 0 12px;font-family:Georgia,serif;">{p}</p>'
+        for p in paras
+    )
+
+    tip_html = ""
+    if tip:
+        tip_html = (
+            f'<div style="margin-top:14px;padding:12px 14px;background:#1a1200;'
+            f'border-left:3px solid #c8930a;border-radius:0 6px 6px 0;">'
+            f'<div style="font-size:9px;font-weight:700;letter-spacing:2px;'
+            f'color:#c8930a;margin-bottom:6px;">PERSONAL STORY PROMPT</div>'
+            f'<div style="font-size:13px;color:#d4b483;line-height:1.7;'
+            f'font-family:Georgia,serif;font-style:italic;">{tip}</div>'
+            f'</div>'
+        )
+
+    return f"""
+    <div style="margin:16px 0 20px;padding:18px 20px;background:#0d1117;
+                border-radius:8px;border-left:3px solid #7c3aed;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:2px;
+                  color:#7c3aed;margin-bottom:14px;">SUBSTACK NOTE</div>
+      {paras_html}
+      {tip_html}
+    </div>"""
 
 
 # ── X Post renderer ───────────────────────────────────────────────────────────

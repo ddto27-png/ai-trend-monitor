@@ -21,6 +21,7 @@ load_dotenv()
 from content_structurer.brief_extractor import extract_todays_briefs
 from content_structurer.content_generator import generate_draft, save_draft
 from content_structurer.draft_emailer import send_drafts
+from content_structurer.substack_note_generator import generate_and_validate_note, save_note
 from content_structurer.x_post_generator import generate_and_validate_x_post, save_x_post
 
 OUTPUT_DIR = Path(__file__).parent / "outputs"
@@ -53,13 +54,13 @@ def main() -> None:
     print()
 
     if args.dry_run:
-        print("[2/2] Dry run — skipping article generation.\n")
+        print("[2/5] Dry run — skipping article generation.\n")
         print("  Parsed briefs:\n")
         print(json.dumps(briefs, indent=2))
         return
 
     # ── Step 2: Generate drafts ───────────────────────────────────
-    print(f"[2/4] Generating drafts with Claude → {OUTPUT_DIR}\n")
+    print(f"[2/5] Generating drafts with Claude → {OUTPUT_DIR}\n")
     saved: list[Path] = []
     ready_to_email: list[dict] = []
     failed = 0
@@ -84,8 +85,33 @@ def main() -> None:
     print(f"\n  Output directory: {OUTPUT_DIR}")
     print(f"{'='*60}\n")
 
-    # ── Step 3: Generate X posts ──────────────────────────────────
-    print(f"[3/4] Generating X posts with Claude → {OUTPUT_DIR}\n")
+    # ── Step 3: Generate Substack notes ──────────────────────────
+    print(f"[3/5] Generating Substack notes with Claude → {OUTPUT_DIR}\n")
+    note_failed = 0
+
+    for item in ready_to_email:
+        label = item["title"][:70]
+        print(f"  {label}...")
+        try:
+            note, note_needs_review, tip = generate_and_validate_note(
+                item, item["draft"]
+            )
+            note_path = save_note(item, note, OUTPUT_DIR,
+                                  needs_review=note_needs_review, tip=tip)
+            item["substack_note"] = note
+            item["substack_note_needs_review"] = note_needs_review
+            item["substack_note_tip"] = tip
+            status = "NEEDS REVIEW — " if note_needs_review else ""
+            print(f"    ✓ {status}{note_path.name}\n")
+        except Exception as exc:
+            print(f"    ✗ Error generating Substack note: {exc}\n")
+            note_failed += 1
+
+    if note_failed:
+        print(f"  WARNING: {note_failed} Substack note(s) failed to generate\n")
+
+    # ── Step 4: Generate X posts ──────────────────────────────────
+    print(f"[4/5] Generating X posts with Claude → {OUTPUT_DIR}\n")
     x_failed = 0
 
     for item in ready_to_email:
@@ -105,9 +131,9 @@ def main() -> None:
     if x_failed:
         print(f"  WARNING: {x_failed} X post(s) failed to generate\n")
 
-    # ── Step 4: Email ─────────────────────────────────────────────
+    # ── Step 5: Email ─────────────────────────────────────────────
     if ready_to_email:
-        print("[4/4] Sending drafts by email...")
+        print("[5/5] Sending drafts by email...")
         try:
             send_drafts(ready_to_email)
         except Exception as exc:
