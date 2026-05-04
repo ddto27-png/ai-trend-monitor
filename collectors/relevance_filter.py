@@ -10,14 +10,14 @@ import json
 import anthropic
 
 
-def filter_relevant_items(items: list[dict]) -> list[dict]:
+def filter_relevant_items(items: list[dict]) -> tuple[list[dict], dict]:
     """
     Use Claude Haiku to verify items are genuinely about AI/ML.
-    Logs what gets dropped so you can audit the filter.
+    Returns (kept_items, report) where report describes what was dropped and why.
     Falls back to keeping all items if the API call fails.
     """
     if not items:
-        return []
+        return [], {"kept": 0, "dropped": [], "status": "skipped — no items"}
 
     client = anthropic.Anthropic()
 
@@ -57,7 +57,6 @@ Items to review:
 
         raw = message.content[0].text.strip()
 
-        # Strip markdown fences if Claude wraps in code block
         if "```" in raw:
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -66,21 +65,31 @@ Items to review:
         keep_indices = set(json.loads(raw.strip()))
 
         if not isinstance(keep_indices, set):
-            return items
+            return items, {"kept": len(items), "dropped": [], "status": "fallback — bad response"}
 
         kept = [item for i, item in enumerate(items, 1) if i in keep_indices]
         dropped = [item for i, item in enumerate(items, 1) if i not in keep_indices]
 
-        if dropped:
-            print(f"  Relevance filter: removed {len(dropped)} off-topic item(s):")
-            for item in dropped:
-                print(f"    ✗ [{item.get('source', '?')}] {item.get('title', '')[:80]}")
+        dropped_list = [
+            {"title": item.get("title", "Unknown"), "source": item.get("source", "?")}
+            for item in dropped
+        ]
 
-        if kept:
-            print(f"  Relevance filter: {len(kept)} item(s) confirmed relevant")
+        if dropped_list:
+            print(f"  Relevance filter: removed {len(dropped_list)} off-topic item(s):")
+            for d in dropped_list:
+                print(f"    ✗ [{d['source']}] {d['title'][:80]}")
 
-        return kept
+        print(f"  Relevance filter: {len(kept)}/{len(items)} items confirmed relevant")
+
+        report = {
+            "kept": len(kept),
+            "total": len(items),
+            "dropped": dropped_list,
+            "status": "ok",
+        }
+        return kept, report
 
     except Exception as e:
         print(f"  Relevance filter: skipped due to error ({e}) — keeping all items")
-        return items
+        return items, {"kept": len(items), "total": len(items), "dropped": [], "status": f"error — {e}"}

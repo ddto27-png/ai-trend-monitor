@@ -152,30 +152,33 @@ Identify the most meaningful trends and provide your analysis.
         return analyze_trends(papers[:15])
 
     # Strip any URL that Claude fabricated (not in our known input URLs)
-    result = _verify_source_urls(result, known_urls)
+    result, fabricated_urls = _verify_source_urls(result, known_urls)
+
+    # Attach QA metadata so main.py can surface it in Notion
+    result["_qa_fabricated_urls"] = fabricated_urls
 
     return result
 
 
-def _verify_source_urls(analysis: dict, known_urls: set) -> dict:
+def _verify_source_urls(analysis: dict, known_urls: set) -> tuple[dict, list]:
     """
     Remove any supporting_source URL that wasn't in our input data.
-    If Claude fabricated a URL, it gets stripped rather than published.
+    Returns (analysis, list_of_stripped_urls).
     """
     fabricated = []
     for trend in analysis.get("trends", []):
         for source in trend.get("supporting_sources", []):
             url = source.get("url", "")
             if url and url not in known_urls:
-                fabricated.append(url)
+                fabricated.append({"url": url, "trend": trend.get("title", "?")})
                 source.pop("url", None)
 
     if fabricated:
         print(f"  URL verification: stripped {len(fabricated)} fabricated URL(s):")
-        for u in fabricated:
-            print(f"    ✗ {u}")
+        for f in fabricated:
+            print(f"    ✗ {f['url']}")
 
-    return analysis
+    return analysis, fabricated
 
 
 def _parse_json(raw: str) -> dict:

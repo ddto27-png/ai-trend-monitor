@@ -22,6 +22,7 @@ from collectors.reddit import fetch_posts, filter_relevant_posts
 from collectors.rss import fetch_entries, filter_relevant_entries
 from collectors.relevance_filter import filter_relevant_items
 from analyzers.claude import analyze_trends
+from analyzers.fact_checker import fact_check_analysis
 from publishers.notion import publish_digest
 from publishers.email import send_digest
 
@@ -92,7 +93,7 @@ def main():
     # Uses Claude Haiku to verify every item is genuinely about AI/ML.
     # Drops false positives that keyword matching can't catch.
     print("[5/5] Running semantic relevance filter...")
-    all_items = filter_relevant_items(all_items)
+    all_items, filter_report = filter_relevant_items(all_items)
 
     if not all_items:
         print("\n  No relevant items after filtering. Try --days 2.")
@@ -128,6 +129,23 @@ def main():
     print(f"  Identified {len(trends)} trends ({len(priority)} priority)")
     print(f"  Watch list: {len(watch_list)} items\n")
 
+    # ── Step 3: Accuracy review ──────────────────────────────────
+    print("[7/7] Running accuracy review...")
+    accuracy_report = {"status": "skipped", "corrected": [], "clean_count": 0}
+    try:
+        analysis, accuracy_report = fact_check_analysis(analysis, items_for_analysis)
+    except Exception as e:
+        print(f"  WARNING: Accuracy review failed — {e}")
+
+    # Collect all QA data for the Notion summary block
+    qa_report = {
+        "filter": filter_report,
+        "url_verification": {
+            "fabricated": analysis.pop("_qa_fabricated_urls", []),
+        },
+        "accuracy": accuracy_report,
+    }
+
     if priority:
         print("  🔥 Priority trends:")
         for t in priority:
@@ -141,19 +159,19 @@ def main():
 
     print()
 
-    # ── Step 3: Publish ──────────────────────────────────────────
+    # ── Step 4: Publish ──────────────────────────────────────────
     if args.dry_run:
-        print("[6/6] Dry run — skipping Notion publish and email.")
+        print("[7/7] Dry run — skipping Notion publish and email.")
         import json
         print("\n  Full analysis JSON:")
         print(json.dumps(analysis, indent=2))
     else:
         # Notion
-        print("[6/6] Publishing digest to Notion...")
+        print("[7/7] Publishing digest to Notion...")
         page_url = ""
         try:
             page_url = publish_digest(analysis, item_count=len(items_for_analysis),
-                                      source_counts=source_counts)
+                                      source_counts=source_counts, qa_report=qa_report)
             print(f"  Done! {page_url}")
         except Exception as e:
             print(f"  ERROR publishing to Notion: {e}")

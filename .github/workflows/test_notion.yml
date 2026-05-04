@@ -1,0 +1,38 @@
+name: Test Notion Connection
+
+on:
+  workflow_dispatch:
+    inputs:
+      publisher:
+        description: "Which publisher to test (ai_digest or skitsa)"
+        required: false
+        default: "ai_digest"
+
+jobs:
+  test-notion:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Test Notion connection
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_PARENT_PAGE_ID: ${{ secrets.NOTION_PARENT_PAGE_ID }}
+        run: |
+          if [ "${{ github.event.inputs.publisher }}" = "skitsa" ]; then
+            python test_notion.py --skitsa
+          else
+            python test_notion.py
+          fi
